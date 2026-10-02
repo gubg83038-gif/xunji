@@ -1,0 +1,7 @@
+{
+  "name": "wx-server-sdk",
+  "version": "0.0.0-test-stub",
+  "description": "测试替身：仅用于在 Node 环境验证云函数业务逻辑，不参与部署",
+  "main": "index.js",
+  "private": true
+}

@@ -1,0 +1,70 @@
+<!-- 候选匹配卡片：缩略图 + 时空信息 + 综合匹配度 + 主要匹配原因（方案 6.3） -->
+<view class="mc" wx:if="{{match}}" bindtap="onTap">
+  <view class="mc__top">
+    <view class="mc__rank" wx:if="{{rank}}">TOP {{rank}}</view>
+    <view class="mc__score {{match.passed ? 'is-high' : ''}}">
+      <text class="mc__score-num">{{match.percent}}</text>
+      <text class="mc__score-pct">%</text>
+    </view>
+    <view class="mc__score-label">综合匹配度</view>
+  </view>
+
+  <view class="mc__body">
+    <view class="mc__thumb thumb">
+      <!-- hasImage 由视图模型预计算：demo:// 是演示图库标识，不能当图片资源渲染 -->
+      <image
+        wx:if="{{match.counterpart.hasImage && !imageError}}"
+        src="{{match.counterpart.image}}"
+        mode="aspectFill"
+        binderror="onImageError"
+      />
+      <view wx:else class="thumb__fallback">{{match.counterpart.icon}}</view>
+      <view class="mc__thumb-tag">{{match.counterpart.typeLabel}}</view>
+    </view>
+
+    <view class="mc__info grow">
+      <view class="mc__title ellipsis">{{match.counterpart.title}}</view>
+      <view class="mc__meta">
+        <text class="mc__meta-icon">📍</text>
+        <text class="ellipsis">{{match.counterpart.locationName}}</text>
+      </view>
+      <view class="mc__meta">
+        <text class="mc__meta-icon">🕒</text>
+        <text>{{match.counterpart.timeText}}</text>
+      </view>
+      <view class="mc__tags">
+        <text wx:for="{{match.counterpart.tags}}" wx:key="*this" class="tag tag--gray">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="mc__geo">
+    <text class="mc__geo-chip">{{match.geoText}}</text>
+    <text class="mc__geo-chip">{{match.timeText}}</text>
+  </view>
+
+  <view class="mc__reasons" wx:if="{{match.reasonTexts.length}}">
+    <view class="mc__reason" wx:for="{{match.reasonTexts}}" wx:key="text">
+      <text class="mc__reason-dot"></text>
+      <text class="grow">{{item}}</text>
+    </view>
+  </view>
+
+  <view class="mc__conflict" wx:if="{{match.conflictTexts.length}}">
+    <text class="mc__conflict-title">⚠ 显著差异</text>
+    <text class="mc__conflict-item" wx:for="{{match.conflictTexts}}" wx:key="text">{{item}}</text>
+  </view>
+
+  <view class="mc__uncertain" wx:if="{{expanded && match.uncertainTexts.length}}">
+    <text class="mc__uncertain-title">? 不确定证据</text>
+    <text class="mc__uncertain-item" wx:for="{{match.uncertainTexts}}" wx:key="text">{{item}}</text>
+  </view>
+
+  <view class="mc__foot">
+    <view class="mc__more" catchtap="onToggleReason">{{expanded ? '收起' : '更多依据'}}</view>
+    <view class="mc__actions">
+      <view wx:if="{{showReject}}" class="btn btn--sm btn--plain" catchtap="onReject">排除</view>
+      <view class="btn btn--sm btn--primary" catchtap="onClaim">发起认领</view>
+    </view>
+  </view>
+</view>

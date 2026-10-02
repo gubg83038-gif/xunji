@@ -1,0 +1,236 @@
+/* ---------- 步骤条 ---------- */
+.steps {
+  display: flex;
+  align-items: center;
+  padding: 26rpx 20rpx;
+}
+
+.step {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 150rpx;
+  flex: none;
+}
+
+.step__dot {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 50%;
+  background: #f2f4f7;
+  color: #98a2b3;
+  font-size: 24rpx;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.step__label {
+  font-size: 20rpx;
+  color: #98a2b3;
+  margin-top: 10rpx;
+  text-align: center;
+}
+
+.step.is-on .step__dot {
+  background: #2e6be6;
+  color: #fff;
+}
+
+.step.is-on .step__label { color: #1b47a8; font-weight: 600; }
+
+.step.is-done .step__dot {
+  background: #12b76a;
+  color: #fff;
+}
+
+.step.is-done .step__label { color: #067647; }
+
+.step.is-fail .step__dot {
+  background: #f04438;
+  color: #fff;
+}
+
+.step__bar {
+  flex: 1;
+  height: 4rpx;
+  background: #eaecf0;
+  margin: 0 -20rpx 26rpx;
+}
+
+.step__bar.is-on { background: #12b76a; }
+
+/* ---------- 物品对照 ---------- */
+.pair {
+  display: flex;
+  align-items: center;
+  gap: 16rpx;
+}
+
+.pair__side {
+  flex: 1;
+  min-width: 0;
+}
+
+.pair__tag {
+  display: inline-block;
+  font-size: 19rpx;
+  padding: 3rpx 12rpx;
+  border-radius: 999rpx;
+  background: #eaf1ff;
+  color: #1b47a8;
+  margin-bottom: 10rpx;
+}
+
+.pair__tag--found { background: #fff1e9; color: #c2410c; }
+
+.pair__title {
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.pair__meta {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+.pair__icon {
+  font-size: 34rpx;
+  color: #c7d3e8;
+  flex: none;
+}
+
+/* ---------- 提示 ---------- */
+.notice {
+  background: linear-gradient(135deg, #f5f9ff, #eef4ff);
+}
+
+.notice__title {
+  font-size: 28rpx;
+  font-weight: 600;
+  color: #1b47a8;
+}
+
+.notice__text {
+  font-size: 23rpx;
+  color: #4763a8;
+  line-height: 1.6;
+  margin-top: 10rpx;
+}
+
+.safety {
+  font-size: 24rpx;
+  color: #b45309;
+  background: #fff7e6;
+  text-align: center;
+}
+
+/* ---------- 问题 ---------- */
+.q {
+  display: flex;
+  align-items: flex-start;
+  margin-bottom: 18rpx;
+}
+
+.q__index {
+  font-size: 20rpx;
+  font-weight: 700;
+  color: #fff;
+  background: #2e6be6;
+  border-radius: 8rpx;
+  padding: 2rpx 10rpx;
+  margin: 6rpx 14rpx 0 0;
+  flex: none;
+}
+
+.q__text {
+  font-size: 28rpx;
+  font-weight: 600;
+  line-height: 1.55;
+}
+
+.hints {
+  display: flex;
+  gap: 12rpx;
+  margin-top: 14rpx;
+}
+
+.hint-chip {
+  font-size: 21rpx;
+  color: #667085;
+  background: #f2f4f7;
+  border-radius: 999rpx;
+  padding: 8rpx 20rpx;
+}
+
+/* ---------- 结果 ---------- */
+.result {
+  text-align: center;
+  padding: 40rpx 28rpx;
+}
+
+.result__score {
+  font-size: 76rpx;
+  font-weight: 800;
+  line-height: 1;
+}
+
+.result__score.is-good { color: #12b76a; }
+.result__score.is-mid { color: #f59e0b; }
+.result__score.is-bad { color: #f04438; }
+
+.result__pct { font-size: 30rpx; }
+
+.result__label {
+  font-size: 22rpx;
+  color: #98a2b3;
+  margin-top: 8rpx;
+}
+
+.result__status {
+  display: inline-block;
+  margin-top: 18rpx;
+}
+
+.result__tip {
+  font-size: 21rpx;
+  color: #98a2b3;
+  line-height: 1.6;
+  margin-top: 18rpx;
+}
+
+.ans {
+  font-size: 26rpx;
+  color: #101828;
+  background: #f9fafb;
+  border-radius: 14rpx;
+  padding: 18rpx 20rpx;
+  line-height: 1.6;
+}
+
+.ans__meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 21rpx;
+  color: #667085;
+  margin-top: 12rpx;
+}
+
+.ans__reason { color: #98a2b3; }
+
+.priv {
+  font-size: 24rpx;
+  color: #475467;
+  background: #f9fafb;
+  border-radius: 14rpx;
+  padding: 16rpx 20rpx;
+  margin-top: 10rpx;
+}
+
+.op {
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  color: #2e6be6;
+}

@@ -1,0 +1,6 @@
+{
+  "navigationBarTitleText": "详细对比",
+  "usingComponents": {
+    "score-bar": "/components/score-bar/score-bar"
+  }
+}

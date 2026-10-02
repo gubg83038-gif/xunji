@@ -1,0 +1,139 @@
+<view class="map-page">
+  <!-- 校区标题：一眼说明这是哪个校区，避免地图看起来“飘到别的学校” -->
+  <view class="campus-bar" wx:if="{{campus}}">
+    <view class="campus-bar__main">
+      <text class="campus-bar__name">{{campus.school}} · {{campus.campus}}</text>
+      <text class="campus-bar__coord">{{campus.coordSystem}}</text>
+    </view>
+    <text class="campus-bar__addr">{{campus.address}}</text>
+  </view>
+
+  <!-- 地图 -->
+  <view class="map-wrap">
+    <!--
+      include-points 把视野锁在江南大学蠡湖校区范围内：
+      即使 latitude/longitude 尚未就绪，地图也不会退化到微信默认视野。
+    -->
+    <map
+      id="campusMap"
+      class="map"
+      latitude="{{mapCenter.lat}}"
+      longitude="{{mapCenter.lng}}"
+      scale="{{mapScale}}"
+      include-points="{{includePoints}}"
+      markers="{{markers}}"
+      circles="{{circles}}"
+      show-location="{{false}}"
+      enable-rotate="{{false}}"
+      enable-zoom="{{true}}"
+      enable-scroll="{{true}}"
+      bindmarkertap="onMarkerTap"
+    ></map>
+
+    <view class="map-reset" bindtap="onResetView">⤢</view>
+    <view class="map-legend">
+      <view class="map-legend__item"><view class="map-legend__dot" style="background:#bcd2fb"></view>较少</view>
+      <view class="map-legend__item"><view class="map-legend__dot" style="background:#f59e0b"></view>较多</view>
+      <view class="map-legend__item"><view class="map-legend__dot" style="background:#f04438"></view>最多</view>
+      <view class="map-legend__more" bindtap="onHeatExplain">说明</view>
+    </view>
+  </view>
+
+  <!-- 筛选 -->
+  <view class="filters">
+    <view class="filter-group">
+      <view
+        class="fbtn {{kindKey === item.key ? 'is-on' : ''}}"
+        wx:for="{{kindOptions}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="onKindChange"
+      >{{item.label}}</view>
+    </view>
+    <view class="filter-group">
+      <view
+        class="fbtn {{rangeKey === item.key ? 'is-on' : ''}}"
+        wx:for="{{rangeOptions}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="onRangeChange"
+      >{{item.label}}</view>
+    </view>
+    <picker mode="selector" range="{{categories}}" range-key="name" bindchange="onCategoryChange">
+      <view class="fbtn fbtn--picker">{{categoryKey === 'all' ? '全部类别 ▾' : '已选类别 ▾'}}</view>
+    </picker>
+  </view>
+
+  <view class="body">
+    <!-- 选中地点 -->
+    <view class="card sel" wx:if="{{selected}}">
+      <view class="row row--between">
+        <view class="sel__name">{{selected.name}}</view>
+        <view class="sel__close" bindtap="onClosePanel">×</view>
+      </view>
+      <view class="sel__meta">
+        {{selected.areaName || ''}} · 记录共 {{selected.total}} 条
+        <text wx:if="{{selected.total === 0}}" class="sel__empty">（当前筛选下暂无记录）</text>
+      </view>
+      <view class="sel__bars" wx:if="{{selected.total > 0}}">
+        <view class="sel__bar sel__bar--lost" style="width: {{selected.lost * 14}}%">
+          <text wx:if="{{selected.lost}}">失物 {{selected.lost}}</text>
+        </view>
+        <view class="sel__bar sel__bar--found" style="width: {{selected.found * 14}}%">
+          <text wx:if="{{selected.found}}">拾物 {{selected.found}}</text>
+        </view>
+      </view>
+      <view class="sel__op" bindtap="onOpenMatches">查看该区域的候选匹配 ›</view>
+    </view>
+
+    <!-- 有记录的排行 -->
+    <block wx:if="{{hasRecords}}">
+      <view class="section-head" style="padding: 0 6rpx;">
+        <text class="section-title">记录热点排行</text>
+        <text class="section-more">共 {{total}} 条记录</text>
+      </view>
+
+      <view class="card rank">
+        <view class="rank__row" wx:for="{{cells}}" wx:key="id" data-index="{{index}}" bindtap="onCellTap">
+          <view class="rank__no rank__no--{{item.level}}">{{index + 1}}</view>
+          <view class="grow">
+            <view class="rank__name">{{item.name}}</view>
+            <view class="rank__area">{{item.areaName}}</view>
+          </view>
+          <view class="rank__bar">
+            <view class="rank__fill" style="width: {{item.total / maxTotal * 100}}%"></view>
+          </view>
+          <view class="rank__count">{{item.total}}</view>
+        </view>
+      </view>
+    </block>
+
+    <view class="empty-hint" wx:else>
+      当前筛选条件下没有记录点。下面是校区全部地标，点击可在地图上定位。
+    </view>
+
+    <!-- 校区全部地标（含 0 条记录的） -->
+    <view class="section-head" style="padding: 0 6rpx;">
+      <text class="section-title">校区地标（{{campusSpots.length}}）</text>
+      <text class="section-more">{{campus.unverifiedCount}} 个坐标待校准</text>
+    </view>
+
+    <view class="card spots">
+      <view class="spot" wx:for="{{campusSpots}}" wx:key="id" data-index="{{index}}" bindtap="onCellTap">
+        <view class="spot__badge spot__badge--{{item.level}}">{{item.total || '·'}}</view>
+        <view class="grow">
+          <view class="spot__name">
+            {{item.name}}
+            <text wx:if="{{!item.verified}}" class="spot__verify">待校准</text>
+          </view>
+          <view class="spot__meta">{{item.areaName}} · {{item.cateLabel}}</view>
+        </view>
+        <text class="spot__arrow">›</text>
+      </view>
+    </view>
+
+    <view class="map-hint">
+      数据按建筑/区域级地点聚合展示；点击气泡或条目可在地图上定位。坐标系 {{campus.coordSystem}}，数据来源 {{campus.source}}。
+    </view>
+  </view>
+</view>

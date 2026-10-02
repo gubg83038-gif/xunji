@@ -1,0 +1,201 @@
+<view class="page" wx:if="{{detail}}">
+  <!-- 结论卡 -->
+  <view class="verdict card">
+    <view class="verdict__left">
+      <view class="verdict__score">{{detail.percent}}<text class="verdict__pct">%</text></view>
+      <view class="verdict__label">综合匹配度</view>
+      <view class="verdict__badge {{detail.passed ? 'is-pass' : ''}}">{{detail.passed ? '超过提醒阈值' : '未达提醒阈值'}}</view>
+    </view>
+    <view class="verdict__right grow">
+      <view class="verdict__advice">{{advice}}</view>
+      <view class="verdict__weights">{{weightText}}</view>
+    </view>
+  </view>
+
+  <!-- 双图并列 -->
+  <view class="duo card">
+    <view class="duo__side" bindtap="onPreview" data-url="{{detail.lost.image}}">
+      <view class="duo__tag duo__tag--lost">我的物品（失物）</view>
+      <view class="duo__img thumb">
+        <image wx:if="{{detail.lost.hasImage}}" src="{{detail.lost.image}}" mode="aspectFill" />
+        <view wx:else class="thumb__fallback">{{detail.lost.icon}}</view>
+      </view>
+      <view class="duo__title ellipsis">{{detail.lost.title}}</view>
+      <view class="duo__meta">{{detail.lost.locationName}}</view>
+      <view class="duo__meta">{{detail.lost.timeText}}</view>
+    </view>
+
+    <view class="duo__mid">
+      <view class="duo__line"></view>
+      <view class="duo__score">{{detail.percent}}%</view>
+      <view class="duo__line"></view>
+    </view>
+
+    <view class="duo__side" bindtap="onPreview" data-url="{{detail.found.image}}">
+      <view class="duo__tag duo__tag--found">拾到物品</view>
+      <view class="duo__img thumb">
+        <image wx:if="{{detail.found.hasImage}}" src="{{detail.found.image}}" mode="aspectFill" />
+        <view wx:else class="thumb__fallback">{{detail.found.icon}}</view>
+      </view>
+      <view class="duo__title ellipsis">{{detail.found.title}}</view>
+      <view class="duo__meta">{{detail.found.locationName}}</view>
+      <view class="duo__meta">{{detail.found.timeText}}</view>
+    </view>
+  </view>
+
+  <!-- 切换页签 -->
+  <view class="tabs">
+    <view class="tab {{activeTab === 'evidence' ? 'is-on' : ''}}" data-tab="evidence" bindtap="onTabChange">证据与差异</view>
+    <view class="tab {{activeTab === 'attr' ? 'is-on' : ''}}" data-tab="attr" bindtap="onTabChange">属性对比</view>
+    <view class="tab {{activeTab === 'timeline' ? 'is-on' : ''}}" data-tab="timeline" bindtap="onTabChange">时空与时间线</view>
+  </view>
+
+  <!-- 证据与差异 -->
+  <block wx:if="{{activeTab === 'evidence'}}">
+    <view class="card">
+      <view class="section-title">分项得分</view>
+      <view class="form-hint" style="margin: 10rpx 0 22rpx;">点击任意分项可查看该维度的计算方式</view>
+      <score-bar bars="{{bars}}" bind:tapbar="onBarTap" />
+    </view>
+
+    <view class="card">
+      <view class="section-title">系统解释</view>
+      <view class="explain">{{explanation}}</view>
+      <view class="explain__op" bindtap="onCopyExplain">复制解释文本</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title t-success">支持的证据（{{reasonList.length}}）</view>
+      <view class="ev ev--pos" wx:for="{{reasonList}}" wx:key="text">
+        <text class="ev__dot"></text>
+        <text class="grow">{{item.text}}</text>
+      </view>
+      <view wx:if="{{!reasonList.length}}" class="form-hint">暂无明显正向证据</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title t-danger">冲突证据（{{conflictList.length}}）</view>
+      <view class="ev ev--neg" wx:for="{{conflictList}}" wx:key="text">
+        <text class="ev__dot"></text>
+        <text class="grow">{{item.text}}</text>
+      </view>
+      <view wx:if="{{!conflictList.length}}" class="form-hint">未发现明显冲突点</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title t-muted">不确定证据（{{uncertainList.length}}）</view>
+      <view class="ev ev--warn" wx:for="{{uncertainList}}" wx:key="text">
+        <text class="ev__dot"></text>
+        <text class="grow">{{item.text}}</text>
+      </view>
+      <view wx:if="{{!uncertainList.length}}" class="form-hint">无</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">防冒领核验</view>
+      <view class="form-hint" style="margin: 10rpx 0 14rpx;">
+        公开信息只用于检索；认领时必须回答拾物者保留的隐藏特征问题，由拾物者最终确认。
+      </view>
+      <view class="priv" wx:for="{{privateFeatures}}" wx:key="*this">🔒 {{item}}</view>
+    </view>
+  </block>
+
+  <!-- 属性对比 -->
+  <block wx:if="{{activeTab === 'attr'}}">
+    <view class="card">
+      <view class="section-title">属性逐项对比</view>
+      <view class="table">
+        <view class="table__head">
+          <view class="table__c1">维度</view>
+          <view class="table__c2">我的物品</view>
+          <view class="table__c2">拾到物品</view>
+          <view class="table__c3">判断</view>
+        </view>
+        <view class="table__row" wx:for="{{attrRows}}" wx:key="field">
+          <view class="table__c1">
+            <text>{{item.label}}</text>
+            <text class="table__pct">{{item.percent}}%</text>
+          </view>
+          <view class="table__c2 ellipsis">{{item.a}}</view>
+          <view class="table__c2 ellipsis">{{item.b}}</view>
+          <view class="table__c3">
+            <text class="tag {{item.cls === 'success' ? 'tag--success' : (item.cls === 'danger' ? 'tag--danger' : (item.cls === 'gray' ? 'tag--gray' : 'tag--warn'))}}">{{item.judgement}}</text>
+          </view>
+        </view>
+        <view class="table__empty" wx:if="{{!attrRows.length}}">暂无可比较的结构化属性</view>
+      </view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">原始描述对照</view>
+      <view class="raw">
+        <view class="raw__label">我的描述</view>
+        <view class="raw__text">{{detail.lost.description || '（无）'}}</view>
+        <view class="raw__label">拾物者描述</view>
+        <view class="raw__text">{{detail.found.description || '（无）'}}</view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 时空与时间线 -->
+  <block wx:if="{{activeTab === 'timeline'}}">
+    <view class="card">
+      <view class="section-title">时空关系</view>
+      <view class="space">
+        <view class="space__row">
+          <text class="space__k">丢失地点</text>
+          <text class="space__v grow">{{detail.lost.locationName}}</text>
+        </view>
+        <view class="space__row">
+          <text class="space__k">发现地点</text>
+          <text class="space__v grow">{{detail.found.locationName}}</text>
+        </view>
+        <view class="space__row">
+          <text class="space__k">距离</text>
+          <text class="space__v grow">{{detail.geoText}}</text>
+        </view>
+        <view class="space__row">
+          <text class="space__k">时间差</text>
+          <text class="space__v grow">{{detail.timeText}}</text>
+        </view>
+      </view>
+      <view class="mapentry" bindtap="onOpenMap">在地图上查看两个地点 ›</view>
+    </view>
+
+    <view class="card">
+      <view class="section-title">事件时间线</view>
+      <view class="tl">
+        <view class="tl__item" wx:for="{{timeline}}" wx:key="label">
+          <view class="tl__axis">
+            <view class="tl__dot tl__dot--{{item.type}}"></view>
+            <view class="tl__line" wx:if="{{index !== timeline.length - 1}}"></view>
+          </view>
+          <view class="grow tl__body">
+            <view class="tl__label">{{item.label}}</view>
+            <view class="tl__desc">{{item.desc}}</view>
+            <view class="tl__time">{{item.timeText}} · {{item.relative}}</view>
+          </view>
+        </view>
+      </view>
+    </view>
+  </block>
+
+  <!-- 认领状态 -->
+  <view class="card" wx:if="{{claim}}">
+    <view class="row row--between">
+      <view class="section-title">认领进度</view>
+      <view class="status status--{{claim.statusClass}}">{{claim.statusLabel}}</view>
+    </view>
+    <view class="form-hint" style="margin-top: 12rpx;">
+      语义核验辅助分 {{claim.verificationPercent}}%（仅作辅助，最终由拾物者确认）
+    </view>
+  </view>
+
+  <view class="footer-placeholder"></view>
+  <view class="footer-bar">
+    <view class="btn btn--plain" style="flex: 1;" bindtap="onReject">排除该候选</view>
+    <view class="btn btn--primary" style="flex: 2;" bindtap="onClaim">
+      {{claim && claim.status !== 'rejected' ? '查看认领进度' : '发起认领核验'}}
+    </view>
+  </view>
+</view>

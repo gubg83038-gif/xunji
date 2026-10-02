@@ -1,0 +1,10 @@
+{
+  "name": "xj-ai",
+  "version": "1.0.0",
+  "description": "寻迹 · AI 能力云函数（DeepSeek 视觉属性提取与图像语义描述）",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

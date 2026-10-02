@@ -1,0 +1,8 @@
+{
+  "navigationBarTitleText": "寻迹 · 校园失物智能匹配",
+  "enablePullDownRefresh": true,
+  "usingComponents": {
+    "item-card": "/components/item-card/item-card",
+    "empty-state": "/components/empty-state/empty-state"
+  }
+}

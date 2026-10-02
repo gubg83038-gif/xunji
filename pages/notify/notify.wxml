@@ -1,0 +1,48 @@
+<view class="page">
+  <view class="head">
+    <view>
+      <view class="page-title">消息提醒</view>
+      <view class="page-subtitle">新记录入库后会触发增量匹配，超过阈值时主动提醒你</view>
+    </view>
+    <view class="head__op" wx:if="{{unread}}" bindtap="onMarkAll">全部已读</view>
+  </view>
+
+  <block wx:if="{{notifications.length}}">
+    <view
+      class="ntf card {{item.read ? '' : 'is-unread'}}"
+      wx:for="{{notifications}}"
+      wx:key="id"
+      data-id="{{item.id}}"
+      bindtap="onTapNotify"
+    >
+      <view class="ntf__dot" wx:if="{{!item.read}}"></view>
+      <view class="ntf__head">
+        <text class="ntf__title">{{item.title}}</text>
+        <text class="ntf__time">{{item.timeText}}</text>
+      </view>
+      <view class="ntf__body">{{item.body}}</view>
+
+      <view class="ntf__pair" wx:if="{{item.foundView}}">
+        <view class="ntf__side">
+          <view class="ntf__label">拾到物品</view>
+          <view class="ntf__name ellipsis">{{item.foundView.icon}} {{item.foundView.title}}</view>
+          <view class="ntf__loc ellipsis">{{item.foundView.locationName}}</view>
+        </view>
+        <view class="ntf__score" wx:if="{{item.scorePercent}}">{{item.scorePercent}}%</view>
+      </view>
+
+      <view class="ntf__foot" wx:if="{{item.canClaim}}">
+        <view class="btn btn--sm btn--primary" catchtap="onClaim" data-match="{{item.matchId}}">发起认领核验</view>
+      </view>
+    </view>
+  </block>
+
+  <empty-state
+    wx:else
+    icon="🔔"
+    title="暂时没有提醒"
+    desc="当你发布的记录出现新的高相似候选，或有人发起认领时，提醒会出现在这里"
+    actionText="查看候选匹配"
+    bind:action="goMatches"
+  />
+</view>

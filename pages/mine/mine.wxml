@@ -1,0 +1,154 @@
+<view class="page">
+  <!-- 用户卡 -->
+  <view class="profile card">
+    <view class="profile__avatar">{{user.nickName}}</view>
+    <view class="grow">
+      <view class="profile__name">
+        {{user.nickName}}
+        <text class="profile__switch" bindtap="onSwitchUser">切换身份</text>
+      </view>
+      <view class="profile__meta">{{user.college}} · 信用分 {{user.credit}}</view>
+      <view class="profile__stats">
+        <text>发布失物 {{stats.lostCount}} 条</text>
+        <text class="profile__dot">·</text>
+        <text>拾物 {{stats.foundCount}} 条</text>
+        <text class="profile__dot">·</text>
+        <text>归还 {{stats.returnedCount}} 件</text>
+      </view>
+    </view>
+    <view class="profile__bell" bindtap="goNotify">
+      🔔
+      <view wx:if="{{unread}}" class="profile__badge">{{unread}}</view>
+    </view>
+  </view>
+
+  <!-- tabs -->
+  <view class="tabs">
+    <view
+      class="tab {{tabKey === item.key ? 'is-on' : ''}}"
+      wx:for="{{tabs}}"
+      wx:key="key"
+      data-key="{{item.key}}"
+      bindtap="onTabChange"
+    >{{item.label}}</view>
+  </view>
+
+  <!-- 我的失物 -->
+  <block wx:if="{{tabKey === 'lost'}}">
+    <block wx:if="{{lostItems.length}}">
+      <view class="item card" wx:for="{{lostItems}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+        <view class="item__icon">{{item.icon}}</view>
+        <view class="grow">
+          <view class="item__title ellipsis">{{item.title}}</view>
+          <view class="item__meta">{{item.locationName}} · {{item.timeText}}</view>
+          <view class="item__meta item__meta--weak">发布于 {{item.createdText}}</view>
+        </view>
+        <view class="item__right">
+          <view class="status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+          <view class="item__count">{{item.matchCount}} 个候选</view>
+          <view class="item__op" catchtap="goMatches" data-id="{{item.id}}" data-kind="lost">查看候选 ›</view>
+        </view>
+      </view>
+    </block>
+    <empty-state
+      wx:else
+      icon="🙋"
+      title="还没有发布失物"
+      desc="上传一张以前的照片或写一句描述，系统就会持续帮你寻找"
+    />
+  </block>
+
+  <!-- 我的拾物 -->
+  <block wx:if="{{tabKey === 'found'}}">
+    <block wx:if="{{foundItems.length}}">
+      <view class="item card" wx:for="{{foundItems}}" wx:key="id" data-id="{{item.id}}" bindtap="goDetail">
+        <view class="item__icon">{{item.icon}}</view>
+        <view class="grow">
+          <view class="item__title ellipsis">{{item.title}}</view>
+          <view class="item__meta">{{item.locationName}} · {{item.timeText}}</view>
+          <view class="item__meta item__meta--weak">已保留 {{item.privateCount}} 项隐藏核验特征</view>
+        </view>
+        <view class="item__right">
+          <view class="status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+          <view class="item__count">{{item.matchCount}} 个潜在失主</view>
+          <view class="item__op" catchtap="goMatches" data-id="{{item.id}}" data-kind="found">查看匹配 ›</view>
+        </view>
+      </view>
+    </block>
+    <empty-state
+      wx:else
+      icon="🤝"
+      title="还没有发布拾物"
+      desc="拍照发布并补充 1—2 个隐藏特征，帮助失主安全认领"
+    />
+  </block>
+
+  <!-- 认领记录 -->
+  <block wx:if="{{tabKey === 'claim'}}">
+    <block wx:if="{{claims.length}}">
+      <view class="item card" wx:for="{{claims}}" wx:key="id" data-id="{{item.id}}" bindtap="goClaim">
+        <view class="item__icon">🔐</view>
+        <view class="grow">
+          <view class="item__title ellipsis">{{item.lost.title}} ⇄ {{item.found.title}}</view>
+          <view class="item__meta">核验辅助分 {{item.verificationPercent}}% · {{item.createdText}}</view>
+          <view class="item__meta item__meta--weak">{{item.questions.length}} 个隐藏特征问题</view>
+        </view>
+        <view class="item__right">
+          <view class="status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+        </view>
+      </view>
+    </block>
+    <empty-state
+      wx:else
+      icon="🔐"
+      title="暂无认领记录"
+      desc="在候选对比页发起认领后，核验进度会显示在这里"
+    />
+  </block>
+
+  <!-- 工具 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">工具与设置</text>
+    </view>
+    <view class="tools card">
+      <view class="tools__item" bindtap="goAdmin">
+        <text class="tools__icon">📊</text>
+        <view class="grow">
+          <view class="tools__title">管理看板与实验</view>
+          <view class="tools__desc">统计指标、类别分布、消融实验 Recall@K / MRR</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+      <view class="divider"></view>
+      <view class="tools__item" bindtap="onFeedback">
+        <text class="tools__icon">🔁</text>
+        <view class="grow">
+          <view class="tools__title">匹配反馈与样本</view>
+          <view class="tools__desc">正样本 / 弱负样本的采集与用途</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+      <view class="divider"></view>
+      <view class="tools__item" bindtap="onResetDemo">
+        <text class="tools__icon">♻️</text>
+        <view class="grow">
+          <view class="tools__title">重置演示数据</view>
+          <view class="tools__desc">恢复内置演示故事线，答辩前使用</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+      <view class="divider"></view>
+      <view class="tools__item" bindtap="onAbout">
+        <text class="tools__icon">ℹ️</text>
+        <view class="grow">
+          <view class="tools__title">关于「寻迹」</view>
+          <view class="tools__desc">产品定位、闭环设计与匹配公式</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="footnote">数据保存在本地（Mock 数据层），切换真实后端只需替换 utils/store.js 的读写实现</view>
+</view>

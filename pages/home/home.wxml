@@ -1,0 +1,182 @@
+<view class="page">
+  <!-- 顶部：品牌 + 通知 -->
+  <view class="hero">
+    <view class="hero__brand">
+      <view class="hero__logo">寻迹</view>
+      <view class="hero__slogan">多模态语义检索 · 时空关联 · 可解释匹配</view>
+    </view>
+    <view class="hero__bell" bindtap="goNotify">
+      🔔
+      <view wx:if="{{unread}}" class="hero__badge">{{unread}}</view>
+    </view>
+  </view>
+
+  <!-- 两大主入口（方案 11：降低操作门槛） -->
+  <view class="entries">
+    <view class="entry entry--lost" bindtap="goPublish" data-type="lost">
+      <view class="entry__icon">🙋</view>
+      <view class="entry__title">我丢了东西</view>
+      <view class="entry__desc">拍照 / 描述，系统持续帮你找</view>
+    </view>
+    <view class="entry entry--found" bindtap="goPublish" data-type="found">
+      <view class="entry__icon">🤝</view>
+      <view class="entry__title">我捡到东西</view>
+      <view class="entry__desc">30 秒发布，自动匹配失主</view>
+    </view>
+  </view>
+
+  <!-- 平台运行状态 -->
+  <view class="stats card" wx:if="{{stats}}">
+    <view class="stats__item">
+      <view class="stats__num">{{stats.lostCount}}</view>
+      <view class="stats__label">失物记录</view>
+    </view>
+    <view class="stats__item">
+      <view class="stats__num">{{stats.foundCount}}</view>
+      <view class="stats__label">拾物记录</view>
+    </view>
+    <view class="stats__item">
+      <view class="stats__num">{{stats.strongMatchCount}}</view>
+      <view class="stats__label">高相似候选</view>
+    </view>
+    <view class="stats__item">
+      <view class="stats__num">{{stats.recoverRate}}%</view>
+      <view class="stats__label">归还率</view>
+    </view>
+  </view>
+
+  <!-- 我的持续寻找任务（方案 6.5） -->
+  <view class="section" wx:if="{{myTasks.length}}">
+    <view class="section-head">
+      <text class="section-title">持续寻找中</text>
+      <text class="section-more" bindtap="goMatches">全部候选 ›</text>
+    </view>
+    <view class="task card" wx:for="{{myTasks}}" wx:key="id" bindtap="goTask" data-id="{{item.id}}">
+      <view class="task__icon">{{item.icon}}</view>
+      <view class="grow">
+        <view class="task__title ellipsis">{{item.title}}</view>
+        <view class="task__meta">{{item.locationName}} · {{item.timeText}}</view>
+      </view>
+      <view class="task__right">
+        <view class="status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+        <view class="task__count">{{item.matchCount}} 个候选</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 推荐候选 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">系统发现的高相似候选</text>
+      <text class="section-more" bindtap="goMatches">更多 ›</text>
+    </view>
+    <block wx:if="{{topMatches.length}}">
+      <item-card
+        wx:for="{{topMatches}}"
+        wx:key="id"
+        match="{{item}}"
+        rank="{{index + 1}}"
+        bind:tapcard="onMatchTap"
+        bind:reject="onMatchReject"
+        bind:claim="onMatchClaim"
+      />
+    </block>
+    <empty-state
+      wx:else
+      icon="🧭"
+      title="还没有候选"
+      desc="发布一条失物或拾物记录，系统会自动完成跨模态召回与时空重排"
+      actionText="去发布"
+      bind:action="goPublish"
+    />
+  </view>
+
+  <!-- 类别快捷入口 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">按类别查看</text>
+      <text class="section-more" bindtap="goMatches">全部候选 ›</text>
+    </view>
+    <view class="cats card">
+      <view
+        class="cat"
+        wx:for="{{categories}}"
+        wx:key="key"
+        hover-class="cat--hover"
+        hover-stay-time="80"
+        bindtap="goCategory"
+        data-key="{{item.key}}"
+      >
+        <view class="cat__icon">{{item.icon}}</view>
+        <view class="cat__name">{{item.name}}</view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 高频丢失区域预览 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">高频丢失区域</text>
+      <text class="section-more" bindtap="goMap">热力地图 ›</text>
+    </view>
+    <view class="heat card">
+      <view class="heat__row" wx:for="{{heatTop}}" wx:key="id">
+        <view class="heat__name ellipsis">{{item.name}}</view>
+        <view class="heat__bar">
+          <view class="heat__fill" style="width: {{heatTop[0].total ? item.total / heatTop[0].total * 100 : 0}}%"></view>
+        </view>
+        <view class="heat__val">{{item.total}}</view>
+      </view>
+      <view class="heat__hint">按建筑/区域级聚合展示，不公开精确位置（隐私策略）</view>
+    </view>
+  </view>
+
+  <!-- 最新拾物 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">最新拾物记录</text>
+    </view>
+    <view class="recent card">
+      <view class="recent__item" wx:for="{{recentFounds}}" wx:key="id" bindtap="goDetail" data-id="{{item.id}}">
+        <view class="recent__icon">{{item.icon}}</view>
+        <view class="grow">
+          <view class="recent__title ellipsis">{{item.title}}</view>
+          <view class="recent__meta">{{item.locationName}} · {{item.createdText}}</view>
+        </view>
+        <view class="recent__tags">
+          <text wx:for="{{item.tags}}" wx:for-item="tag" wx:key="*this" class="tag tag--gray">{{tag}}</text>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 竞赛与演示工具 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">演示与实验</text>
+    </view>
+    <view class="tools card">
+      <view class="tools__item" bindtap="goAdmin">
+        <text class="tools__icon">📊</text>
+        <view class="grow">
+          <view class="tools__title">管理看板与消融实验</view>
+          <view class="tools__desc">发布量、匹配率、归还率、Recall@K / MRR 对比</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+      <view class="divider"></view>
+      <view class="tools__item" bindtap="onSeedReset">
+        <text class="tools__icon">♻️</text>
+        <view class="grow">
+          <view class="tools__title">重置演示数据</view>
+          <view class="tools__desc">一键恢复到内置的演示故事线初始状态</view>
+        </view>
+        <text class="tools__arrow">›</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="footnote">
+    匹配权重基于用户实际输入动态归一化：S = α·S_image + β·S_attr + γ·S_text + δ·S_geo + ε·S_time
+  </view>
+</view>

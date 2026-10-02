@@ -1,0 +1,109 @@
+<view class="page" wx:if="{{item}}">
+  <!-- 主信息 -->
+  <view class="card head-card">
+    <view class="head-card__media thumb" bindtap="onPreview">
+      <image wx:if="{{item.hasImage}}" src="{{item.image}}" mode="aspectFill" />
+      <view wx:else class="thumb__fallback">{{item.icon}}</view>
+    </view>
+    <view class="head-card__body">
+      <view class="row row--between">
+        <view class="status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+        <view class="tag tag--gray">{{item.typeLabel}}</view>
+      </view>
+      <view class="head-card__title">{{item.title}}</view>
+      <view class="head-card__meta">📍 {{item.locationName}}（{{item.areaName}}）</view>
+      <view class="head-card__meta">🕒 {{item.timeText}}</view>
+      <view class="head-card__meta">👤 {{item.ownerName}} · 发布于 {{item.createdText}}</view>
+      <view class="head-card__tags">
+        <text wx:for="{{item.tags}}" wx:key="*this" class="tag">{{item}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 描述 -->
+  <view class="card">
+    <view class="section-title">公开描述</view>
+    <view class="desc">{{item.description || '（未填写描述）'}}</view>
+  </view>
+
+  <!-- 结构化属性 -->
+  <view class="card">
+    <view class="section-title">结构化属性</view>
+    <view class="form-hint" style="margin: 10rpx 0 16rpx;">由 AI 提取并经发布者确认，是属性一致度与可解释匹配的基础</view>
+    <view class="attr-row" wx:for="{{attributeRows}}" wx:key="key">
+      <text class="attr-row__k">{{item.label}}</text>
+      <text class="attr-row__v grow">{{item.value}}</text>
+    </view>
+    <view class="form-hint" wx:if="{{!attributeRows.length}}">暂无结构化属性</view>
+  </view>
+
+  <!-- 隐藏特征 -->
+  <view class="card" wx:if="{{privateFeatures.length}}">
+    <view class="section-title">🔒 隐藏核验特征</view>
+    <view class="form-hint" style="margin: 10rpx 0 14rpx;">
+      这些内容不会出现在公开检索结果中，仅在认领核验流程中使用
+    </view>
+    <view class="priv" wx:for="{{privateFeatures}}" wx:key="*this">{{item}}</view>
+  </view>
+
+  <!-- 关联候选 -->
+  <view class="section">
+    <view class="section-head">
+      <text class="section-title">{{item.kind === 'lost' ? '匹配到的拾物候选' : '可能的失主'}}</text>
+      <text class="section-more" bindtap="onRerun">重新匹配 ↻</text>
+    </view>
+    <block wx:if="{{candidates.length}}">
+      <item-card
+        wx:for="{{candidates}}"
+        wx:key="id"
+        match="{{item}}"
+        rank="{{index + 1}}"
+        bind:tapcard="onMatchTap"
+        bind:reject="onMatchReject"
+        bind:claim="onMatchClaim"
+      />
+    </block>
+    <empty-state
+      wx:else
+      icon="🔎"
+      title="暂时没有匹配到候选"
+      desc="系统会在有新的对应记录入库时自动重新匹配并提醒你"
+    />
+  </view>
+
+  <!-- 时间线 -->
+  <view class="card" wx:if="{{timeline.length}}">
+    <view class="section-title">事件时间线</view>
+    <view class="tl">
+      <view class="tl__item" wx:for="{{timeline}}" wx:key="label">
+        <view class="tl__axis">
+          <view class="tl__dot tl__dot--{{item.type}}"></view>
+          <view class="tl__line" wx:if="{{index !== timeline.length - 1}}"></view>
+        </view>
+        <view class="grow tl__body">
+          <view class="tl__label">{{item.label}}</view>
+          <view class="tl__desc">{{item.desc}}</view>
+          <view class="tl__time">{{item.timeText}} · {{item.relative}}</view>
+        </view>
+      </view>
+    </view>
+  </view>
+
+  <!-- 位置 -->
+  <view class="card mapcard" bindtap="onMapTap">
+    <view class="grow">
+      <view class="section-title">在地图上查看</view>
+      <view class="form-hint" style="margin-top: 8rpx;">按区域级展示该记录位置与周边高频区域</view>
+    </view>
+    <text class="mapcard__arrow">›</text>
+  </view>
+
+  <view class="footer-placeholder" wx:if="{{isOwner}}"></view>
+  <view class="footer-bar" wx:if="{{isOwner}}">
+    <view class="btn btn--plain" style="flex: 1;" bindtap="onCloseItem">关闭记录</view>
+    <view class="btn btn--plain" style="flex: 1;" bindtap="onDelete">删除</view>
+    <view class="btn btn--primary" style="flex: 1.4;" bindtap="onMarkReturned">
+      {{item.kind === 'lost' ? '标记为已找回' : '标记为已归还'}}
+    </view>
+  </view>
+</view>

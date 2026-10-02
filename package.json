@@ -1,0 +1,25 @@
+{
+  "name": "xunji-campus-lost-and-found",
+  "version": "1.0.0",
+  "private": true,
+  "description": "「寻迹」基于多模态语义检索与时空关联的校园失物智能匹配平台 · 微信小程序",
+  "scripts": {
+    "test": "node ../历史版本/scripts/check-encoding.js && node ../历史版本/scripts/check-changelog.js --strict && node tests/check-reachable.js && node tests/run-utils.test.js && node tests/run-cloudfunctions.test.js && node tests/run-mirror.test.js && node tests/run-ai-routing.test.js && node tests/run-pages.test.js && node tests/check-project.js && node tests/check-cloudfunctions.js",
+    "test:encoding": "node ../历史版本/scripts/check-encoding.js",
+    "test:changelog": "node ../历史版本/scripts/check-changelog.js",
+    "test:reachable": "node tests/check-reachable.js",
+    "test:algo": "node tests/run-utils.test.js",
+    "test:cloud": "node tests/run-cloudfunctions.test.js",
+    "test:mirror": "node tests/run-mirror.test.js",
+    "test:airouting": "node tests/run-ai-routing.test.js",
+    "test:pages": "node tests/run-pages.test.js",
+    "test:project": "node tests/check-project.js",
+    "test:cloudstructure": "node tests/check-cloudfunctions.js",
+    "log": "node ../历史版本/scripts/add-changelog.js",
+    "ai:health": "node ../历史版本/scripts/ai-health.js",
+    "sync:core": "node scripts/sync-core.js"
+  },
+  "engines": {
+    "node": ">=14"
+  }
+}

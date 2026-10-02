@@ -1,0 +1,113 @@
+{
+  "description": "「寻迹」校园失物智能匹配平台 · 微信小程序",
+  "appid": "wxaf569137ba3b48e8",
+  "projectname": "xunji-campus-lost-and-found",
+  "compileType": "miniprogram",
+  "libVersion": "3.17.3",
+  "miniprogramRoot": "./",
+  "cloudfunctionRoot": "cloudfunctions/",
+  "setting": {
+    "urlCheck": false,
+    "es6": true,
+    "enhance": true,
+    "postcss": true,
+    "minified": true,
+    "bigPackageSizeSupport": true,
+    "ignoreDevUnusedFiles": true,
+    "ignoreUploadUnusedFiles": true,
+    "packNpmManually": false,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "uglifyFileName": false,
+    "uploadWithSourceMap": true,
+    "useIsolateContext": true,
+    "useCompilerModule": true,
+    "userConfirmedUseCompilerModuleSwitch": false,
+    "checkSiteMap": false,
+    "showShadowRootInWxmlPanel": true,
+    "compileWorklet": false,
+    "packNpmRelationList": [],
+    "minifyWXSS": true,
+    "minifyWXML": true,
+    "localPlugins": false,
+    "disableUseStrict": false,
+    "useCompilerPlugins": false,
+    "condition": false,
+    "swc": false,
+    "disableSWC": true,
+    "babelSetting": {
+      "ignore": [],
+      "disablePlugins": [],
+      "outputPath": ""
+    }
+  },
+  "condition": {
+    "miniprogram": {
+      "list": [
+        {
+          "name": "首页",
+          "pathName": "pages/home/home",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "发布失物",
+          "pathName": "pages/publish/publish",
+          "query": "type=lost",
+          "scene": null
+        },
+        {
+          "name": "发布拾物",
+          "pathName": "pages/publish/publish",
+          "query": "type=found",
+          "scene": null
+        },
+        {
+          "name": "匹配列表",
+          "pathName": "pages/matches/matches",
+          "query": "itemId=&type=lost",
+          "scene": null
+        },
+        {
+          "name": "地图",
+          "pathName": "pages/map/map",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "消息",
+          "pathName": "pages/notify/notify",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "我的",
+          "pathName": "pages/mine/mine",
+          "query": "",
+          "scene": null
+        },
+        {
+          "name": "管理看板",
+          "pathName": "pages/admin/admin",
+          "query": "",
+          "scene": null
+        }
+      ]
+    }
+  },
+  "simulatorPluginLibVersion": {},
+  "packOptions": {
+    "ignore": [
+      { "type": "folder", "value": "scripts" },
+      { "type": "folder", "value": "tests" },
+      { "type": "file", "value": "package.json" },
+      { "type": "file", "value": "AGENTS.md" },
+      { "type": "file", "value": "CHANGELOG.md" },
+      { "type": "file", "value": "README.md" }
+    ],
+    "include": []
+  },
+  "editorSetting": {}
+}

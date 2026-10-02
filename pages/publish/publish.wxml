@@ -1,0 +1,163 @@
+<view class="page">
+  <!-- 类型切换 -->
+  <view class="switcher">
+    <view class="switcher__item {{kind === 'lost' ? 'is-active' : ''}}" data-type="lost" bindtap="onSwitchType">我丢了东西</view>
+    <view class="switcher__item {{kind === 'found' ? 'is-active' : ''}}" data-type="found" bindtap="onSwitchType">我捡到东西</view>
+  </view>
+
+  <view class="tipbar">
+    {{kind === 'lost' ? '拍照或写一句描述即可，AI 负责把它变成可检索的结构化信息' : '30 秒完成发布；请务必留下 1—2 个隐藏特征，用于防止冒领'}}
+    <text class="tipbar__link" bindtap="onGuide">填写建议</text>
+  </view>
+
+  <!-- 图片 -->
+  <view class="card">
+    <view class="form-item">
+      <view class="form-label">物品照片<text class="ai-badge">AI 识别</text></view>
+      <view class="images">
+        <view class="image-box" wx:for="{{images}}" wx:key="*this">
+          <!-- demo:// 是演示图库标识，不是可渲染的图片资源，改为显示占位卡 -->
+          <image wx:if="{{item.indexOf('demo://') !== 0}}" src="{{item}}" mode="aspectFill" />
+          <view wx:else class="image-box__demo">
+            <text class="image-box__icon">🖼</text>
+            <text class="image-box__label">{{imageTitles[index]}}</text>
+          </view>
+          <view class="image-box__del" data-index="{{index}}" catchtap="onRemoveImage">×</view>
+        </view>
+        <view class="image-add" bindtap="onChooseImage">
+          <text class="image-add__icon">＋</text>
+          <text class="image-add__label">演示图库</text>
+        </view>
+        <view class="image-add" bindtap="onUploadImage">
+          <text class="image-add__icon">📷</text>
+          <text class="image-add__label">相册/拍摄</text>
+        </view>
+      </view>
+      <view class="form-hint">离线演示可用内置演示图库，属性提取结果稳定可复现；真机演示请用自己拍摄的照片。</view>
+    </view>
+
+    <!-- 描述 -->
+    <view class="form-item">
+      <view class="form-label">物品描述<text class="req">*</text><text class="ai-badge">AI 抽取属性</text></view>
+      <textarea
+        class="textarea"
+        value="{{description}}"
+        placeholder="{{kind === 'lost' ? '例：深灰色不锈钢保温杯，黑色杯盖，杯身有白色纵向 Logo' : '例：灰黑色金属水杯，深黑杯盖，杯身有白色英文标志'}}"
+        maxlength="200"
+        bindinput="onDescInput"
+        bindblur="onDescBlur"
+      />
+      <view class="form-hint">越具体越容易被匹配：颜色 / 材质 / 品牌 / 显著特征（划痕、贴纸、挂件）</view>
+    </view>
+
+    <!-- 类别 -->
+    <view class="form-item">
+      <view class="form-label">物品类别<text class="ai-badge">AI 建议可修改</text></view>
+      <picker mode="selector" range="{{categories}}" range-key="name" value="{{categoryIndex}}" bindchange="onPickCategory">
+        <view class="picker-value {{categoryName ? '' : 'is-empty'}}">
+          <text>{{categoryName || '请选择类别'}}</text>
+          <text class="picker-value__arrow">▾</text>
+        </view>
+      </picker>
+    </view>
+
+    <!-- 地点 -->
+    <view class="form-item">
+      <view class="form-label">地点<text class="req">*</text></view>
+      <picker mode="selector" range="{{hotLocations}}" range-key="name" bindchange="onPickLocation">
+        <view class="picker-value {{locationName ? '' : 'is-empty'}}">
+          <text>{{locationName || '从校园标准地点中选择'}}</text>
+          <text class="picker-value__arrow">▾</text>
+        </view>
+      </picker>
+      <input
+        class="input location-input"
+        value="{{locationText}}"
+        placeholder="或直接输入，如“图书馆北门”“三食堂门口”"
+        bindinput="onLocationInput"
+      />
+      <view class="form-hint {{locationMatched ? '' : 't-danger'}}">
+        {{locationMatched ? '地点已标准化为校园区域中心点，用于时空重排' : '未识别到标准地点：仍会保留文字描述，但地点相关度不参与加权'}}
+      </view>
+    </view>
+
+    <!-- 时间 -->
+    <view class="form-item">
+      <view class="form-label">{{kind === 'lost' ? '丢失时间' : '拾取时间'}}<text class="req">*</text></view>
+      <view class="time-row">
+        <picker mode="date" value="{{dateStr}}" bindchange="onDateChange">
+          <view class="picker-value picker-value--half">{{dateStr}}</view>
+        </picker>
+        <picker mode="time" value="{{timeStr}}" bindchange="onTimeChange">
+          <view class="picker-value picker-value--half">{{timeStr}}</view>
+        </picker>
+      </view>
+      <input class="input location-input" value="{{timeText}}" placeholder="也可以写“今天下午3点左右”" bindinput="onTimeTextInput" />
+      <view class="form-hint">{{kind === 'lost' ? '时间会作为范围参与重排，不精确也没关系' : '拾取时间与失主估计时间越接近，时间相关度越高'}}</view>
+    </view>
+  </view>
+
+  <!-- AI 结构化属性 -->
+  <view class="card">
+    <view class="row row--between">
+      <view class="section-title">结构化属性</view>
+      <view class="btn btn--sm btn--ghost" bindtap="onRerunExtract">重新提取</view>
+    </view>
+    <view class="form-hint" style="margin-bottom: 12rpx;">
+      AI 生成的属性必须允许用户修改，最终记录以确认后的信息为准（模型结果仅作建议）。
+    </view>
+
+    <view class="attr" wx:for="{{attrFields}}" wx:key="key">
+      <view class="attr__key">{{item.label}}</view>
+      <block wx:if="{{!item.editing}}">
+        <view class="attr__val grow" data-key="{{item.key}}" bindtap="onEditAttr">
+          <text>{{item.value || '未识别'}}</text>
+        </view>
+        <view class="attr__src {{item.source === 'user' ? 'is-user' : ''}}">{{item.sourceLabel}}</view>
+      </block>
+      <block wx:else>
+        <input class="attr__input grow" value="{{editingValue}}" placeholder="输入修正后的值" bindinput="onAttrInput" focus />
+        <view class="attr__op" bindtap="onAttrSave">保存</view>
+        <view class="attr__op attr__op--cancel" bindtap="onAttrCancel">取消</view>
+      </block>
+    </view>
+
+    <view class="attr__empty" wx:if="{{!attrFields.length}}">
+      还没有可用的结构化属性，补充图片或描述后点击“重新提取”
+    </view>
+
+    <view class="form-hint" wx:for="{{notes}}" wx:key="*this">· {{item}}</view>
+  </view>
+
+  <!-- 隐藏核验特征 -->
+  <view class="card">
+    <view class="section-title">{{kind === 'found' ? '隐藏核验特征' : '私有特征（选填）'}}</view>
+    <view class="form-hint" style="margin: 10rpx 0 18rpx;">
+      {{kind === 'found'
+        ? '这些信息不会出现在公开页面，仅用于认领时的防冒领问答。建议保留 1—2 项只有真正失主才可能知道的特征。'
+        : '如果你记得某些只有自己知道的细节，填在这里可以在认领时更快通过核验。'}}
+    </view>
+    <view class="chips">
+      <view
+        class="chip {{privateSelected.indexOf(item) >= 0 ? 'is-on' : ''}}"
+        wx:for="{{privateSuggestions}}"
+        wx:key="*this"
+        data-value="{{item}}"
+        bindtap="onTogglePrivate"
+      >{{item}}</view>
+    </view>
+    <view class="chips" wx:if="{{privateSelected.length}}">
+      <view class="chip is-on" wx:for="{{privateSelected}}" wx:key="*this">{{item}}</view>
+    </view>
+    <view class="private-add">
+      <input class="input grow" value="{{privateCustom}}" placeholder="补充自定义隐藏特征" bindinput="onPrivateCustomInput" />
+      <view class="btn btn--sm btn--ghost" bindtap="onAddPrivateCustom">添加</view>
+    </view>
+  </view>
+
+  <view class="footer-placeholder"></view>
+  <view class="footer-bar">
+    <view class="btn btn--plain" style="flex: 1;" bindtap="onRerunExtract">重新提取</view>
+    <view class="btn btn--primary" style="flex: 2;" bindtap="onSubmit">{{submitting ? '发布中…' : (kind === 'lost' ? '发布失物并开始匹配' : '发布拾物并匹配失主')}}</view>
+  </view>
+</view>

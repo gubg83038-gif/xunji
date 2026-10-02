@@ -1,0 +1,10 @@
+{
+  "name": "xj-api",
+  "version": "1.0.0",
+  "description": "寻迹 · 统一业务网关（物品 / 匹配 / 认领 / 统计）",
+  "main": "index.js",
+  "private": true,
+  "dependencies": {
+    "wx-server-sdk": "~2.6.3"
+  }
+}

@@ -1,0 +1,146 @@
+.head-card {
+  display: flex;
+  gap: 24rpx;
+}
+
+.head-card__media {
+  width: 220rpx;
+  height: 220rpx;
+  flex: none;
+}
+
+.head-card__body {
+  flex: 1;
+  min-width: 0;
+}
+
+.head-card__title {
+  font-size: 32rpx;
+  font-weight: 700;
+  margin: 14rpx 0 10rpx;
+}
+
+.head-card__meta {
+  font-size: 22rpx;
+  color: #667085;
+  margin-bottom: 4rpx;
+}
+
+.head-card__tags {
+  margin-top: 12rpx;
+  display: flex;
+  flex-wrap: wrap;
+}
+
+.head-card__tags .tag { margin-bottom: 6rpx; }
+
+.desc {
+  font-size: 27rpx;
+  line-height: 1.7;
+  color: #344054;
+  margin-top: 14rpx;
+  background: #f9fafb;
+  border-radius: 16rpx;
+  padding: 22rpx;
+}
+
+.attr-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 16rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.attr-row:last-child { border-bottom: none; }
+
+.attr-row__k {
+  width: 180rpx;
+  flex: none;
+  font-size: 24rpx;
+  color: #98a2b3;
+}
+
+.attr-row__v {
+  font-size: 26rpx;
+  color: #101828;
+}
+
+.priv {
+  font-size: 24rpx;
+  color: #475467;
+  background: #f9fafb;
+  border-radius: 14rpx;
+  padding: 16rpx 20rpx;
+  margin-top: 10rpx;
+}
+
+.mapcard {
+  display: flex;
+  align-items: center;
+}
+
+.mapcard__arrow {
+  font-size: 40rpx;
+  color: #d0d5dd;
+}
+
+/* ---------- 时间线 ---------- */
+.tl { margin-top: 16rpx; }
+
+.tl__item {
+  display: flex;
+  gap: 18rpx;
+}
+
+.tl__axis {
+  width: 24rpx;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8rpx;
+}
+
+.tl__dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #98a2b3;
+  flex: none;
+}
+
+.tl__dot--lost_publish { background: #2e6be6; }
+.tl__dot--found { background: #ff7a45; }
+.tl__dot--found_publish { background: #ffb088; }
+.tl__dot--match { background: #6941c6; }
+.tl__dot--claim { background: #f59e0b; }
+.tl__dot--verify { background: #026aa2; }
+.tl__dot--confirm { background: #12b76a; }
+.tl__dot--returned { background: #067647; }
+
+.tl__line {
+  width: 2rpx;
+  flex: 1;
+  background: #eaecf0;
+  margin: 6rpx 0;
+  min-height: 36rpx;
+}
+
+.tl__body { padding-bottom: 24rpx; }
+
+.tl__label {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.tl__desc {
+  font-size: 23rpx;
+  color: #667085;
+  margin-top: 4rpx;
+}
+
+.tl__time {
+  font-size: 20rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}

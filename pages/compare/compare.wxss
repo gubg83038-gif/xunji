@@ -1,0 +1,348 @@
+/* ---------- 结论卡 ---------- */
+.verdict {
+  display: flex;
+  gap: 26rpx;
+  align-items: center;
+  background: linear-gradient(135deg, #ffffff, #f4f8ff);
+}
+
+.verdict__left {
+  text-align: center;
+  flex: none;
+  width: 200rpx;
+}
+
+.verdict__score {
+  font-size: 68rpx;
+  font-weight: 800;
+  color: #2e6be6;
+  line-height: 1;
+}
+
+.verdict__pct { font-size: 30rpx; }
+
+.verdict__label {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}
+
+.verdict__badge {
+  display: inline-block;
+  margin-top: 12rpx;
+  font-size: 20rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  background: #f2f4f7;
+  color: #667085;
+}
+
+.verdict__badge.is-pass {
+  background: #e7f8f0;
+  color: #067647;
+}
+
+.verdict__advice {
+  font-size: 27rpx;
+  font-weight: 600;
+  line-height: 1.5;
+}
+
+.verdict__weights {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 10rpx;
+}
+
+/* ---------- 双图 ---------- */
+.duo {
+  display: flex;
+  align-items: stretch;
+  padding: 24rpx 20rpx;
+}
+
+.duo__side {
+  flex: 1;
+  min-width: 0;
+}
+
+.duo__tag {
+  font-size: 20rpx;
+  padding: 4rpx 14rpx;
+  border-radius: 999rpx;
+  display: inline-block;
+  margin-bottom: 12rpx;
+}
+
+.duo__tag--lost { background: #eaf1ff; color: #1b47a8; }
+.duo__tag--found { background: #fff1e9; color: #c2410c; }
+
+.duo__img {
+  width: 100%;
+  height: 220rpx;
+}
+
+.duo__title {
+  font-size: 27rpx;
+  font-weight: 600;
+  margin-top: 14rpx;
+}
+
+.duo__meta {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+.duo__mid {
+  width: 110rpx;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10rpx;
+}
+
+.duo__line {
+  width: 2rpx;
+  height: 70rpx;
+  background: #e6eefc;
+}
+
+.duo__score {
+  font-size: 24rpx;
+  font-weight: 700;
+  color: #2e6be6;
+}
+
+/* ---------- tabs ---------- */
+.tabs {
+  display: flex;
+  gap: 14rpx;
+  margin: 26rpx 0 20rpx;
+}
+
+.tab {
+  flex: 1;
+  text-align: center;
+  font-size: 25rpx;
+  padding: 18rpx 0;
+  border-radius: 999rpx;
+  background: #fff;
+  color: #667085;
+  border: 2rpx solid #eaecf0;
+}
+
+.tab.is-on {
+  background: #2e6be6;
+  border-color: #2e6be6;
+  color: #fff;
+  font-weight: 600;
+}
+
+/* ---------- 证据 ---------- */
+.explain {
+  font-size: 26rpx;
+  line-height: 1.7;
+  color: #344054;
+  background: #f9fafb;
+  border-radius: 16rpx;
+  padding: 22rpx;
+  margin-top: 16rpx;
+}
+
+.explain__op {
+  font-size: 22rpx;
+  color: #2e6be6;
+  margin-top: 14rpx;
+}
+
+.ev {
+  display: flex;
+  align-items: flex-start;
+  font-size: 25rpx;
+  padding: 14rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.ev:last-child { border-bottom: none; }
+
+.ev__dot {
+  width: 12rpx;
+  height: 12rpx;
+  border-radius: 50%;
+  margin: 12rpx 14rpx 0 0;
+  flex: none;
+}
+
+.ev--pos { color: #067647; }
+.ev--pos .ev__dot { background: #12b76a; }
+.ev--neg { color: #b42318; }
+.ev--neg .ev__dot { background: #f04438; }
+.ev--warn { color: #b45309; }
+.ev--warn .ev__dot { background: #f59e0b; }
+
+.priv {
+  font-size: 24rpx;
+  color: #475467;
+  background: #f9fafb;
+  border-radius: 14rpx;
+  padding: 16rpx 20rpx;
+  margin-top: 12rpx;
+}
+
+/* ---------- 属性表 ---------- */
+.table { margin-top: 16rpx; }
+
+.table__head,
+.table__row {
+  display: flex;
+  align-items: center;
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid #f2f4f7;
+}
+
+.table__head {
+  font-size: 21rpx;
+  color: #98a2b3;
+  border-bottom: 2rpx solid #eaecf0;
+}
+
+.table__row:last-child { border-bottom: none; }
+
+.table__c1 {
+  width: 160rpx;
+  flex: none;
+  font-size: 24rpx;
+  color: #667085;
+  display: flex;
+  flex-direction: column;
+}
+
+.table__pct {
+  font-size: 19rpx;
+  color: #b0b7c3;
+}
+
+.table__c2 {
+  flex: 1;
+  min-width: 0;
+  font-size: 25rpx;
+  color: #101828;
+  padding-right: 8rpx;
+}
+
+.table__c3 {
+  width: 110rpx;
+  flex: none;
+  text-align: right;
+}
+
+.table__empty {
+  font-size: 24rpx;
+  color: #98a2b3;
+  padding: 24rpx 0;
+}
+
+.raw__label {
+  font-size: 22rpx;
+  color: #98a2b3;
+  margin: 18rpx 0 8rpx;
+}
+
+.raw__text {
+  font-size: 26rpx;
+  line-height: 1.65;
+  color: #344054;
+  background: #f9fafb;
+  border-radius: 14rpx;
+  padding: 18rpx 20rpx;
+}
+
+/* ---------- 时空 ---------- */
+.space__row {
+  display: flex;
+  align-items: center;
+  padding: 16rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.space__k {
+  width: 160rpx;
+  flex: none;
+  font-size: 24rpx;
+  color: #98a2b3;
+}
+
+.space__v {
+  font-size: 26rpx;
+  color: #101828;
+}
+
+.mapentry {
+  margin-top: 18rpx;
+  font-size: 24rpx;
+  color: #2e6be6;
+}
+
+/* ---------- 时间线 ---------- */
+.tl { margin-top: 10rpx; }
+
+.tl__item {
+  display: flex;
+  gap: 18rpx;
+}
+
+.tl__axis {
+  width: 24rpx;
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-top: 8rpx;
+}
+
+.tl__dot {
+  width: 16rpx;
+  height: 16rpx;
+  border-radius: 50%;
+  background: #98a2b3;
+  flex: none;
+}
+
+.tl__dot--lost_publish { background: #2e6be6; }
+.tl__dot--found { background: #ff7a45; }
+.tl__dot--found_publish { background: #ffb088; }
+.tl__dot--match { background: #6941c6; }
+.tl__dot--claim { background: #f59e0b; }
+.tl__dot--verify { background: #026aa2; }
+.tl__dot--confirm { background: #12b76a; }
+.tl__dot--returned { background: #067647; }
+
+.tl__line {
+  width: 2rpx;
+  flex: 1;
+  background: #eaecf0;
+  margin: 6rpx 0;
+  min-height: 40rpx;
+}
+
+.tl__body { padding-bottom: 26rpx; }
+
+.tl__label {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.tl__desc {
+  font-size: 23rpx;
+  color: #667085;
+  margin-top: 4rpx;
+}
+
+.tl__time {
+  font-size: 20rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}

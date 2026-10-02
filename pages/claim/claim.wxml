@@ -1,0 +1,152 @@
+<view class="page" wx:if="{{claim}}">
+  <!-- 进度 -->
+  <view class="steps card">
+    <view class="step {{stage === 'answering' ? 'is-on' : 'is-done'}}">
+      <view class="step__dot">1</view>
+      <view class="step__label">回答隐藏特征</view>
+    </view>
+    <view class="step__bar {{stage !== 'answering' ? 'is-on' : ''}}"></view>
+    <view class="step {{stage === 'submitted' ? 'is-on' : (stage === 'verified' || stage === 'returned' ? 'is-done' : (stage === 'rejected' ? 'is-fail' : ''))}}">
+      <view class="step__dot">2</view>
+      <view class="step__label">拾物者确认</view>
+    </view>
+    <view class="step__bar {{stage === 'verified' || stage === 'returned' ? 'is-on' : ''}}"></view>
+    <view class="step {{stage === 'returned' ? 'is-done' : (stage === 'verified' ? 'is-on' : '')}}">
+      <view class="step__dot">3</view>
+      <view class="step__label">线下交接归还</view>
+    </view>
+  </view>
+
+  <!-- 物品对照 -->
+  <view class="pair card">
+    <view class="pair__side" bindtap="goCompare">
+      <view class="pair__tag">寻找中</view>
+      <view class="pair__title ellipsis">{{claim.lost.title}}</view>
+      <view class="pair__meta ellipsis">{{claim.lost.locationName}}</view>
+    </view>
+    <view class="pair__icon">⇄</view>
+    <view class="pair__side" bindtap="goCompare">
+      <view class="pair__tag pair__tag--found">拾到</view>
+      <view class="pair__title ellipsis">{{claim.found.title}}</view>
+      <view class="pair__meta ellipsis">{{claim.found.locationName}}</view>
+    </view>
+  </view>
+
+  <!-- 回答阶段 -->
+  <block wx:if="{{stage === 'answering'}}">
+    <view class="card notice">
+      <view class="notice__title">🔒 这一步是防冒领核验</view>
+      <view class="notice__text">
+        下面问题的答案不会公开展示，只用于与拾物者记录的隐藏特征比对。
+        请尽量描述具体细节（位置、形状、颜色、内容），越具体越容易通过。
+      </view>
+    </view>
+
+    <view class="card" wx:for="{{answers}}" wx:key="qid">
+      <view class="q">
+        <text class="q__index">Q{{index + 1}}</text>
+        <text class="q__text grow">{{item.question}}</text>
+      </view>
+      <textarea
+        class="textarea"
+        value="{{item.value}}"
+        placeholder="请描述具体特征，例如：杯底有一道大约 3 厘米的划痕"
+        maxlength="200"
+        data-index="{{index}}"
+        bindinput="onAnswerInput"
+      />
+      <view class="hints">
+        <view
+          class="hint-chip"
+          wx:for="{{hintChips}}"
+          wx:for-item="hint"
+          wx:key="*this"
+          data-index="{{index}}"
+          data-value="{{hint}}"
+          bindtap="onHintTap"
+        >{{hint}}</view>
+      </view>
+    </view>
+
+    <view class="card safety" bindtap="onSafety">⚠️ 安全与隐私提示</view>
+
+    <view class="footer-placeholder"></view>
+    <view class="footer-bar">
+      <view class="btn btn--primary btn--block" bindtap="onSubmit">{{submitting ? '提交中…' : '提交核验回答'}}</view>
+    </view>
+  </block>
+
+  <!-- 已提交 / 结果阶段 -->
+  <block wx:else>
+    <view class="card result">
+      <view class="result__score {{claim.verificationScore >= 0.6 ? 'is-good' : (claim.verificationScore >= 0.32 ? 'is-mid' : 'is-bad')}}">
+        {{claim.verificationPercent}}<text class="result__pct">%</text>
+      </view>
+      <view class="result__label">语义核验辅助分</view>
+      <view class="result__status status status--{{claim.statusClass}}">{{claim.statusLabel}}</view>
+      <view class="result__tip">
+        该分数由回答与隐藏特征的语义一致度计算，仅作辅助判断；最终由拾物者确认。
+      </view>
+    </view>
+
+    <view class="card" wx:for="{{answers}}" wx:key="qid">
+      <view class="q">
+        <text class="q__index">Q{{index + 1}}</text>
+        <text class="q__text grow">{{item.question}}</text>
+      </view>
+      <view class="ans">{{item.value || '（未作答）'}}</view>
+      <view class="ans__meta">
+        <text>语义一致度 {{item.percent}}%</text>
+        <text class="ans__reason">{{item.reason}}</text>
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{stage === 'submitted' && myRole === 'keeper'}}">
+      <view class="section-title">请核对隐藏特征</view>
+      <view class="form-hint" style="margin: 10rpx 0 18rpx;">
+        你是拾物者，请对照你记录的真实特征判断该认领是否可信。
+      </view>
+      <view class="priv" wx:for="{{claim.privateFeatures}}" wx:key="*this">🔒 {{item}}</view>
+    </view>
+
+    <view class="card" wx:if="{{stage === 'submitted' && myRole !== 'keeper'}}">
+      <view class="section-title">等待拾物者确认</view>
+      <view class="form-hint" style="margin-top: 10rpx;">
+        你可以先与拾物者约定线下交接时间地点；对方确认后这里会变为“待交接”。
+      </view>
+      <view class="op" bindtap="onCopyAnswer">复制我的核验回答</view>
+    </view>
+
+    <view class="card" wx:if="{{stage === 'verified'}}">
+      <view class="section-title t-success">核验已通过</view>
+      <view class="form-hint" style="margin-top: 10rpx;">
+        请在校园公共区域完成交接，交接完成后点击下方“完成归还”结束本次匹配闭环。
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{stage === 'rejected'}}">
+      <view class="section-title t-danger">核验未通过</view>
+      <view class="form-hint" style="margin-top: 10rpx;">
+        该候选已作为负样本记录，用于优化后续阈值与排序策略。返回候选列表可继续寻找其他匹配。
+      </view>
+    </view>
+
+    <view class="card" wx:if="{{stage === 'returned'}}">
+      <view class="section-title t-success">🎉 已完成归还</view>
+      <view class="form-hint" style="margin-top: 10rpx;">
+        本次匹配已闭环：发布 → 匹配 → 解释 → 核验 → 归还 → 反馈，正样本已写入反馈集。
+      </view>
+    </view>
+
+    <view class="footer-placeholder"></view>
+    <view class="footer-bar">
+      <view class="btn btn--plain" style="flex: 1;" bindtap="goCompare">查看对比详情</view>
+      <block wx:if="{{stage === 'submitted' && myRole === 'keeper'}}">
+        <view class="btn btn--plain" style="flex: 1;" data-action="reject" bindtap="onConfirm">特征不符</view>
+        <view class="btn btn--primary" style="flex: 1.4;" data-action="pass" bindtap="onConfirm">确认是其所有</view>
+      </block>
+      <view wx:elif="{{stage === 'verified'}}" class="btn btn--primary" style="flex: 1.6;" bindtap="onCompleteReturn">完成归还</view>
+      <view wx:elif="{{stage === 'returned' || stage === 'rejected'}}" class="btn btn--primary" style="flex: 1.6;" bindtap="goMatches">继续寻找其他候选</view>
+    </view>
+  </block>
+</view>

@@ -1,0 +1,24 @@
+{
+  "description": "本文件为个人开发配置，不参与版本管理",
+  "projectname": "%E5%AF%BB%E8%BF%B9",
+  "setting": {
+    "compileHotReLoad": true,
+    "urlCheck": false,
+    "coverView": true,
+    "lazyloadPlaceholderEnable": false,
+    "skylineRenderEnable": false,
+    "preloadBackgroundData": false,
+    "autoAudits": false,
+    "useApiHook": true,
+    "showShadowRootInWxmlPanel": true,
+    "useStaticServer": false,
+    "useLanDebug": false,
+    "showES6CompileOption": false,
+    "checkInvalidKey": true,
+    "ignoreDevUnusedFiles": false,
+    "bigPackageSizeSupport": true,
+    "useIsolateContext": true
+  },
+  "libVersion": "3.17.3",
+  "condition": {}
+}

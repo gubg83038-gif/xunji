@@ -1,0 +1,96 @@
+.head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16rpx 8rpx 24rpx;
+}
+
+.head__op {
+  font-size: 24rpx;
+  color: #2e6be6;
+  padding-top: 16rpx;
+}
+
+.ntf {
+  position: relative;
+  margin-bottom: 20rpx;
+}
+
+.ntf.is-unread {
+  border-left: 8rpx solid #2e6be6;
+}
+
+.ntf__dot {
+  position: absolute;
+  top: 28rpx;
+  right: 28rpx;
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  background: #f04438;
+}
+
+.ntf__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  padding-right: 20rpx;
+}
+
+.ntf__title {
+  font-size: 29rpx;
+  font-weight: 600;
+}
+
+.ntf__time {
+  font-size: 20rpx;
+  color: #98a2b3;
+}
+
+.ntf__body {
+  font-size: 24rpx;
+  color: #667085;
+  line-height: 1.6;
+  margin-top: 10rpx;
+}
+
+.ntf__pair {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: #f9fafb;
+  border-radius: 16rpx;
+  padding: 18rpx 20rpx;
+  margin-top: 16rpx;
+}
+
+.ntf__label {
+  font-size: 20rpx;
+  color: #98a2b3;
+}
+
+.ntf__name {
+  font-size: 26rpx;
+  font-weight: 600;
+  margin-top: 4rpx;
+}
+
+.ntf__loc {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 2rpx;
+}
+
+.ntf__score {
+  font-size: 34rpx;
+  font-weight: 700;
+  color: #2e6be6;
+  flex: none;
+  margin-left: 18rpx;
+}
+
+.ntf__foot {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 18rpx;
+}

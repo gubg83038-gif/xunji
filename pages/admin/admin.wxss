@@ -1,0 +1,346 @@
+/* ---------- KPI ---------- */
+.kpis {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16rpx;
+}
+
+.kpi {
+  width: calc((100% - 48rpx) / 4);
+  padding: 22rpx 12rpx;
+  text-align: center;
+  border-radius: 22rpx;
+}
+
+.kpi__num {
+  font-size: 36rpx;
+  font-weight: 700;
+  color: #101828;
+  line-height: 1.2;
+}
+
+.kpi__unit {
+  font-size: 20rpx;
+  font-weight: 400;
+  color: #98a2b3;
+  margin-left: 4rpx;
+}
+
+.kpi__label {
+  font-size: 19rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}
+
+/* ---------- 质量 ---------- */
+.q__row {
+  display: flex;
+  justify-content: space-between;
+  padding: 14rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.q__row:last-child { border-bottom: none; }
+
+.q__k {
+  font-size: 24rpx;
+  color: #667085;
+}
+
+.q__v {
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #101828;
+}
+
+/* ---------- 柱状 ---------- */
+.bars { margin-top: 16rpx; }
+
+.bar {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.bar__name {
+  width: 220rpx;
+  font-size: 23rpx;
+  color: #475467;
+}
+
+.bar__track {
+  flex: 1;
+  height: 20rpx;
+  background: #f2f4f7;
+  border-radius: 999rpx;
+  overflow: hidden;
+  margin: 0 16rpx;
+}
+
+.bar__fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #bcd2fb, #2e6be6);
+}
+
+.bar__count {
+  width: 52rpx;
+  text-align: right;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+/* ---------- 状态流转 ---------- */
+.flow {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.flow:last-child { border-bottom: none; }
+
+.flow__label {
+  font-size: 25rpx;
+  color: #344054;
+}
+
+.flow__nums {
+  display: flex;
+  gap: 10rpx;
+}
+
+/* ---------- 消融实验 ---------- */
+.group {
+  border: 2rpx solid #eaecf0;
+  border-radius: 20rpx;
+  padding: 22rpx;
+  margin-bottom: 18rpx;
+}
+
+.group__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.group__name {
+  font-size: 27rpx;
+  font-weight: 700;
+  color: #1b47a8;
+}
+
+.group__ms {
+  font-size: 20rpx;
+  color: #98a2b3;
+}
+
+.group__desc {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin: 8rpx 0 18rpx;
+}
+
+.metric {
+  display: flex;
+  align-items: center;
+  margin-bottom: 12rpx;
+}
+
+.metric__k {
+  width: 150rpx;
+  font-size: 22rpx;
+  color: #667085;
+}
+
+.metric__track {
+  flex: 1;
+  height: 16rpx;
+  border-radius: 999rpx;
+  background: #f2f4f7;
+  overflow: hidden;
+  margin: 0 14rpx;
+}
+
+.metric__fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #7aa4f5, #2e6be6);
+}
+
+.metric__fill--green { background: linear-gradient(90deg, #4ade80, #12b76a); }
+.metric__fill--orange { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+
+.metric__v {
+  width: 80rpx;
+  text-align: right;
+  font-size: 23rpx;
+  font-weight: 600;
+}
+
+.improve {
+  background: linear-gradient(135deg, #f0f6ff, #eaf1ff);
+  border-radius: 20rpx;
+  padding: 24rpx;
+}
+
+.improve__title {
+  font-size: 25rpx;
+  font-weight: 600;
+  color: #1b47a8;
+}
+
+.improve__items {
+  display: flex;
+  margin-top: 18rpx;
+}
+
+.improve__item {
+  flex: 1;
+  text-align: center;
+}
+
+.improve__num {
+  font-size: 38rpx;
+  font-weight: 700;
+}
+
+.improve__num.is-up { color: #12b76a; }
+.improve__num.is-down { color: #f04438; }
+
+.improve__label {
+  display: block;
+  font-size: 20rpx;
+  color: #667085;
+  margin-top: 4rpx;
+}
+
+.improve__note {
+  font-size: 19rpx;
+  color: #98a2b3;
+  margin-top: 16rpx;
+  line-height: 1.6;
+}
+
+/* ---------- 权重 ---------- */
+.weights {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14rpx;
+  margin-top: 16rpx;
+}
+
+.weight {
+  width: calc((100% - 28rpx) / 3);
+  background: #f9fafb;
+  border-radius: 16rpx;
+  padding: 16rpx;
+  text-align: center;
+}
+
+.weight__label {
+  display: block;
+  font-size: 21rpx;
+  color: #667085;
+}
+
+.weight__val {
+  display: block;
+  font-size: 30rpx;
+  font-weight: 700;
+  color: #2e6be6;
+  margin-top: 6rpx;
+}
+
+/* ---------- 异常 ---------- */
+.ano {
+  display: flex;
+  align-items: flex-start;
+  gap: 14rpx;
+  padding: 18rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.ano:last-child { border-bottom: none; }
+
+.ano__dot {
+  width: 14rpx;
+  height: 14rpx;
+  border-radius: 50%;
+  margin-top: 12rpx;
+  flex: none;
+  background: #98a2b3;
+}
+
+.ano__dot--warn { background: #f59e0b; }
+.ano__dot--danger { background: #f04438; }
+.ano__dot--info { background: #2e6be6; }
+
+.ano__title {
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.ano__desc {
+  font-size: 22rpx;
+  color: #667085;
+  margin-top: 6rpx;
+  line-height: 1.5;
+}
+
+.ano__arrow {
+  font-size: 34rpx;
+  color: #d0d5dd;
+  flex: none;
+}
+
+.ops {
+  display: flex;
+  gap: 18rpx;
+  margin-top: 28rpx;
+}
+
+/* ---------- 待校准地点 ---------- */
+.pending {
+  margin-top: 24rpx;
+  padding-top: 20rpx;
+  border-top: 2rpx solid #f2f4f7;
+}
+
+.pending__title {
+  font-size: 24rpx;
+  font-weight: 600;
+  color: #b45309;
+  margin-bottom: 12rpx;
+}
+
+.pending__item {
+  padding: 14rpx 0;
+  border-bottom: 2rpx solid #f9fafb;
+}
+
+.pending__item:last-child { border-bottom: none; }
+
+.pending__name {
+  display: block;
+  font-size: 26rpx;
+  font-weight: 600;
+  color: #101828;
+}
+
+.pending__note {
+  display: block;
+  font-size: 21rpx;
+  color: #98a2b3;
+  line-height: 1.5;
+  margin-top: 4rpx;
+}
+
+.footnote {
+  margin: 32rpx 12rpx 0;
+  font-size: 20rpx;
+  color: #b0b7c3;
+  text-align: center;
+  line-height: 1.6;
+}

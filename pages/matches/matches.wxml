@@ -1,0 +1,108 @@
+<view class="page page--flush">
+  <!--
+    上下文切换：每条记录是一个持续匹配任务。
+    横向滚动必须用「scroll-view + white-space:nowrap + 子项 inline-block」这套组合；
+    若同时加 enable-flex 并让子项 display:inline-flex，white-space 会失效，就滑不动了。
+  -->
+  <scroll-view class="ctx" scroll-x="{{true}}" enable-flex="{{false}}" show-scrollbar="{{false}}">
+    <view
+      class="ctx__item {{index === contextIndex ? 'is-on' : ''}}"
+      wx:for="{{contexts}}"
+      wx:key="key"
+      data-index="{{index}}"
+      bindtap="onSwitchContext"
+    >
+      <view class="ctx__icon">{{item.icon}}</view>
+      <view class="ctx__label">{{item.label}}</view>
+      <view class="ctx__meta">{{item.meta}}</view>
+    </view>
+  </scroll-view>
+
+  <!-- 统计条 -->
+  <view class="sum" wx:if="{{stat}}">
+    <view class="sum__main">
+      <text class="sum__num">{{stat.total}}</text>
+      <text class="sum__unit">个候选</text>
+      <text class="sum__sep">·</text>
+      <text class="sum__passed">{{stat.passed}} 个超过阈值</text>
+    </view>
+    <view class="sum__sub">
+      平均匹配度 {{stat.avg}}% · 阈值 {{stat.threshold}}% · 检索耗时 {{elapsed}} ms
+      <text class="sum__link" bindtap="onExplain">算法说明</text>
+    </view>
+  </view>
+
+  <!-- 排序 + 过滤 -->
+  <view class="toolbar">
+    <view class="sorts">
+      <view
+        class="sort {{sortKey === item.key ? 'is-on' : ''}}"
+        wx:for="{{sorts}}"
+        wx:key="key"
+        data-key="{{item.key}}"
+        bindtap="onSortChange"
+      >{{item.label}}</view>
+    </view>
+    <view class="rerun" bindtap="onRerun">↻</view>
+  </view>
+
+  <scroll-view class="filters" scroll-x="{{true}}" enable-flex="{{false}}" show-scrollbar="{{false}}">
+    <view
+      class="filter {{filterKey === item.key ? 'is-on' : ''}}"
+      wx:for="{{filters}}"
+      wx:key="key"
+      data-key="{{item.key}}"
+      bindtap="onFilterChange"
+    >{{item.label}}</view>
+    <picker
+      class="filter-picker"
+      mode="selector"
+      range="{{categories}}"
+      range-key="name"
+      bindchange="onCategoryChange"
+    >
+      <view class="filter {{categoryKey !== 'all' ? 'is-on' : ''}}">
+        {{categoryKey === 'all' ? '全部类别 ▾' : '已筛选类别 ▾'}}
+      </view>
+    </picker>
+  </scroll-view>
+
+  <view class="search">
+    <input
+      class="search__input"
+      value="{{keyword}}"
+      placeholder="搜索候选物品 / 地点关键词"
+      confirm-type="search"
+      bindinput="onKeywordInput"
+      bindconfirm="onKeywordConfirm"
+    />
+    <view wx:if="{{keyword}}" class="search__clear" bindtap="onResetKeyword">×</view>
+  </view>
+
+  <!-- 候选列表 -->
+  <view class="list">
+    <block wx:if="{{matches.length}}">
+      <item-card
+        wx:for="{{matches}}"
+        wx:key="id"
+        match="{{item}}"
+        rank="{{index + 1}}"
+        bind:tapcard="onMatchTap"
+        bind:reject="onMatchReject"
+        bind:claim="onMatchClaim"
+      />
+    </block>
+    <empty-state
+      wx:elif="{{!loading}}"
+      icon="🫧"
+      title="当前条件下没有候选"
+      desc="可以尝试放宽筛选条件，或发布更多记录让系统重新召回"
+      actionText="去发布记录"
+      bind:action="goPublish"
+    />
+  </view>
+
+  <view class="hint">
+    候选按「视觉 + 属性 + 文字 + 地点 + 时间」五路加权排序，右上方 ↻ 可重新执行一次增量匹配
+  </view>
+</view>

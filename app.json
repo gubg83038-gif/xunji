@@ -1,0 +1,36 @@
+{
+  "pages": [
+    "pages/home/home",
+    "pages/matches/matches",
+    "pages/map/map",
+    "pages/notify/notify",
+    "pages/publish/publish",
+    "pages/compare/compare",
+    "pages/claim/claim",
+    "pages/mine/mine",
+    "pages/detail/detail",
+    "pages/admin/admin"
+  ],
+  "window": {
+    "backgroundTextStyle": "dark",
+    "navigationBarBackgroundColor": "#F6F7FB",
+    "navigationBarTitleText": "寻迹",
+    "navigationBarTextStyle": "black",
+    "backgroundColor": "#F6F7FB"
+  },
+  "tabBar": {
+    "color": "#98A2B3",
+    "selectedColor": "#2E6BE6",
+    "backgroundColor": "#FFFFFF",
+    "borderStyle": "white",
+    "list": [
+      { "pagePath": "pages/home/home", "text": "首页" },
+      { "pagePath": "pages/matches/matches", "text": "匹配" },
+      { "pagePath": "pages/map/map", "text": "地图" },
+      { "pagePath": "pages/mine/mine", "text": "我的" }
+    ]
+  },
+  "style": "v2",
+  "lazyCodeLoading": "requiredComponents",
+  "sitemapLocation": "sitemap.json"
+}

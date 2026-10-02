@@ -1,0 +1,209 @@
+<view class="page">
+  <view class="page-header">
+    <view class="page-title">数据看板</view>
+    <view class="page-subtitle">发布量 · 匹配率 · 归还率 · 检索耗时 · 数据质量 · 消融实验</view>
+  </view>
+
+  <!-- 关键指标 -->
+  <view class="kpis" wx:if="{{stats}}">
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.lostCount}}</view>
+      <view class="kpi__label">失物记录</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.foundCount}}</view>
+      <view class="kpi__label">拾物记录</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.matchCount}}</view>
+      <view class="kpi__label">候选匹配对</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.strongMatchCount}}</view>
+      <view class="kpi__label">超阈值候选</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.recoverRate}}%</view>
+      <view class="kpi__label">归还率</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.avgMatchMs}}<text class="kpi__unit">ms</text></view>
+      <view class="kpi__label">平均匹配耗时</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.avgTopScore}}%</view>
+      <view class="kpi__label">候选平均分</view>
+    </view>
+    <view class="kpi card">
+      <view class="kpi__num">{{stats.dataDensity}}%</view>
+      <view class="kpi__label">候选密度</view>
+    </view>
+  </view>
+
+  <!-- 数据质量 -->
+  <view class="card" wx:if="{{quality}}">
+    <view class="row row--between">
+      <view class="section-title">数据集质量</view>
+      <view class="section-more" bindtap="onExplainMetrics">指标说明</view>
+    </view>
+    <view class="q">
+      <view class="q__row"><text class="q__k">图片覆盖率</text><text class="q__v">{{quality.imageCoverage}}%</text></view>
+      <view class="q__row"><text class="q__k">描述有效率（≥6 字）</text><text class="q__v">{{quality.descCoverage}}%</text></view>
+      <view class="q__row"><text class="q__k">地点标准化率</text><text class="q__v">{{quality.locationStd}}%</text></view>
+      <view class="q__row"><text class="q__k">属性字段平均完整度</text><text class="q__v">{{quality.attrCompleteness}}%</text></view>
+      <view class="q__row"><text class="q__k">拾物隐藏特征填写率</text><text class="q__v">{{quality.privateRate}}%</text></view>
+      <view class="q__row"><text class="q__k">带身份标注的失物样本</text><text class="q__v">{{quality.identityPairs}}</text></view>
+    </view>
+    <view class="form-hint" style="margin-top: 12rpx;">
+      身份标注用于评测集划分：同一真实物品的不同照片/描述视为同一身份，避免训练-测试泄漏。
+    </view>
+  </view>
+
+  <!-- 类别分布 -->
+  <view class="card">
+    <view class="section-title">类别分布</view>
+    <view class="bars">
+      <view class="bar" wx:for="{{categoryBars}}" wx:key="key">
+        <view class="bar__name">{{item.icon}} {{item.name}}</view>
+        <view class="bar__track">
+          <view class="bar__fill" style="width: {{item.percent}}%"></view>
+        </view>
+        <view class="bar__count">{{item.count}}</view>
+      </view>
+    </view>
+    <view class="form-hint" wx:if="{{!categoryBars.length}}">暂无数据</view>
+  </view>
+
+  <!-- 状态流转 -->
+  <view class="card">
+    <view class="section-title">状态流转分布</view>
+    <view class="flow" wx:for="{{statusFlow}}" wx:key="label">
+      <view class="flow__label">{{item.label}}</view>
+      <view class="flow__nums">
+        <text class="tag tag--ghost">失物 {{item.lost}}</text>
+        <text class="tag tag--ghost">拾物 {{item.found}}</text>
+      </view>
+    </view>
+  </view>
+
+  <!-- 消融实验 -->
+  <view class="card">
+    <view class="row row--between">
+      <view class="section-title">消融实验（方案 12.4）</view>
+      <view class="section-more" bindtap="onExplainAblation">实验设计</view>
+    </view>
+    <view class="form-hint" style="margin: 10rpx 0 18rpx;">
+      样本量 {{sampleCount}} 条带身份标注的失物记录 · 逐步增加信息类型观察指标变化
+    </view>
+
+    <view class="group" wx:for="{{groups}}" wx:key="key">
+      <view class="group__head">
+        <text class="group__name">{{item.name}}</text>
+        <text class="group__ms">{{item.avgMs}} ms</text>
+      </view>
+      <view class="group__desc">{{item.desc}}</view>
+      <view class="metric">
+        <text class="metric__k">Recall@1</text>
+        <view class="metric__track"><view class="metric__fill" style="width: {{item.recall1Width}}%"></view></view>
+        <text class="metric__v">{{item.recall1Percent}}%</text>
+      </view>
+      <view class="metric">
+        <text class="metric__k">Recall@5</text>
+        <view class="metric__track"><view class="metric__fill metric__fill--green" style="width: {{item.recall5Width}}%"></view></view>
+        <text class="metric__v">{{item.recall5Percent}}%</text>
+      </view>
+      <view class="metric">
+        <text class="metric__k">MRR</text>
+        <view class="metric__track"><view class="metric__fill metric__fill--orange" style="width: {{item.mrrWidth}}%"></view></view>
+        <text class="metric__v">{{item.mrrPercent}}%</text>
+      </view>
+    </view>
+
+    <view class="improve" wx:if="{{improvement}}">
+      <view class="improve__title">完整方案 D 相对基线 A 的提升</view>
+      <view class="improve__items">
+        <view class="improve__item">
+          <text class="improve__num {{improvement.recall5 >= 0 ? 'is-up' : 'is-down'}}">{{improvement.recall5 >= 0 ? '+' : ''}}{{improvement.recall5}}%</text>
+          <text class="improve__label">Recall@5</text>
+        </view>
+        <view class="improve__item">
+          <text class="improve__num {{improvement.mrr >= 0 ? 'is-up' : 'is-down'}}">{{improvement.mrr >= 0 ? '+' : ''}}{{improvement.mrr}}%</text>
+          <text class="improve__label">MRR</text>
+        </view>
+        <view class="improve__item">
+          <text class="improve__num {{improvement.recall1 >= 0 ? 'is-up' : 'is-down'}}">{{improvement.recall1 >= 0 ? '+' : ''}}{{improvement.recall1}}%</text>
+          <text class="improve__label">Recall@1</text>
+        </view>
+      </view>
+      <view class="improve__note">{{evalNote}}</view>
+    </view>
+  </view>
+
+  <!-- 权重 -->
+  <view class="card">
+    <view class="row row--between">
+      <view class="section-title">基础融合权重</view>
+      <view class="section-more" bindtap="onExplainWeights">机制说明</view>
+    </view>
+    <view class="weights">
+      <view class="weight" wx:for="{{weights}}" wx:key="key">
+        <text class="weight__label">{{item.label}}</text>
+        <text class="weight__val">{{item.base}}%</text>
+      </view>
+    </view>
+    <view class="form-hint" style="margin-top: 12rpx;">
+      实际计算时按用户输入的可模态动态归一化；缺少图片时 α=0，其余权重按比例重新分配。
+    </view>
+  </view>
+
+  <!-- 异常与待处理 -->
+  <view class="card">
+    <view class="section-title">异常与待处理（{{anomalies.length}}）</view>
+    <view class="ano" wx:for="{{anomalies}}" wx:key="desc" data-index="{{index}}" bindtap="onAnomalyTap">
+      <view class="ano__dot ano__dot--{{item.level}}"></view>
+      <view class="grow">
+        <view class="ano__title">{{item.title}}</view>
+        <view class="ano__desc">{{item.desc}}</view>
+      </view>
+      <text class="ano__arrow">›</text>
+    </view>
+    <view class="form-hint" wx:if="{{!anomalies.length}}">暂无异常记录</view>
+  </view>
+
+  <!-- 校园数据 -->
+  <view class="card" wx:if="{{campus}}">
+    <view class="row row--between">
+      <view class="section-title">校园地点库</view>
+      <view class="section-more" bindtap="onExplainCampus">数据来源</view>
+    </view>
+    <view class="q">
+      <view class="q__row"><text class="q__k">学校 / 校区</text><text class="q__v">{{campus.school}} · {{campus.campus}}</text></view>
+      <view class="q__row"><text class="q__k">地点总数</text><text class="q__v">{{campus.locationCount}}</text></view>
+      <view class="q__row"><text class="q__k">坐标待校准</text><text class="q__v t-danger">{{campus.unverifiedCount}}</text></view>
+      <view class="q__row"><text class="q__k">坐标系</text><text class="q__v">{{campus.coordSystem}}</text></view>
+    </view>
+    <view class="form-hint" style="margin-top: 12rpx;">
+      时空重排依赖地点坐标的准确性：坐标偏差 500 m 就足以让「距离相关度」判断失效。
+    </view>
+    <view class="ops" style="margin-top: 20rpx;">
+      <view class="btn btn--ghost" style="flex: 1;" bindtap="onCalibrate">校准地点坐标</view>
+      <view class="btn btn--plain" style="flex: 1;" bindtap="onExportPending">导出待校准清单</view>
+    </view>
+    <view class="pending" wx:if="{{pendingLocations.length}}">
+      <view class="pending__title">待校准地点（{{pendingLocations.length}}）</view>
+      <view class="pending__item" wx:for="{{pendingLocations}}" wx:key="id">
+        <text class="pending__name">{{item.name}}</text>
+        <text class="pending__note">{{item.note}}</text>
+      </view>
+    </view>
+  </view>
+
+  <view class="ops">
+    <view class="btn btn--ghost" style="flex: 1;" bindtap="onExportData">复制统计数据</view>
+    <view class="btn btn--plain" style="flex: 1;" bindtap="onResetDemo">重置演示数据</view>
+  </view>
+
+  <view class="footnote">
+    看板数据来自本地 Mock 数据层；接入真实后端后同一套指标可直接由服务端聚合返回。
+  </view>
+</view>

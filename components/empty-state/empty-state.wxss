@@ -1,0 +1,31 @@
+.es {
+  padding: 90rpx 40rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.es__icon {
+  font-size: 84rpx;
+  opacity: 0.65;
+  margin-bottom: 22rpx;
+}
+
+.es__title {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: #475467;
+  margin-bottom: 12rpx;
+}
+
+.es__desc {
+  font-size: 24rpx;
+  color: #98a2b3;
+  text-align: center;
+  line-height: 1.6;
+  max-width: 520rpx;
+}
+
+.es__btn {
+  margin-top: 30rpx;
+}

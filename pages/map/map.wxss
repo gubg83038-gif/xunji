@@ -1,0 +1,338 @@
+.map-page {
+  min-height: 100vh;
+  background: #f6f7fb;
+  padding-bottom: 40rpx;
+}
+
+/* ---------- 校区标题条 ---------- */
+.campus-bar {
+  padding: 20rpx 28rpx 18rpx;
+  background: linear-gradient(135deg, #eef4ff, #e7f0ff);
+  border-bottom: 2rpx solid #dbe7fb;
+}
+
+.campus-bar__main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.campus-bar__name {
+  font-size: 32rpx;
+  font-weight: 700;
+  color: #1b47a8;
+}
+
+.campus-bar__coord {
+  font-size: 20rpx;
+  color: #2e6be6;
+  background: rgba(255, 255, 255, 0.75);
+  border-radius: 999rpx;
+  padding: 3rpx 14rpx;
+}
+
+.campus-bar__addr {
+  display: block;
+  font-size: 21rpx;
+  color: #4763a8;
+  margin-top: 8rpx;
+}
+
+/* ---------- 地图 ---------- */
+.map-wrap {
+  position: relative;
+  height: 560rpx;
+}
+
+.map {
+  width: 100%;
+  height: 100%;
+}
+
+.map-reset {
+  position: absolute;
+  right: 24rpx;
+  bottom: 100rpx;
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  color: #2e6be6;
+  box-shadow: 0 8rpx 22rpx rgba(16, 24, 40, 0.14);
+}
+
+.map-legend {
+  position: absolute;
+  left: 24rpx;
+  bottom: 24rpx;
+  background: rgba(255, 255, 255, 0.95);
+  border-radius: 16rpx;
+  padding: 12rpx 18rpx;
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  box-shadow: 0 6rpx 18rpx rgba(16, 24, 40, 0.1);
+}
+
+.map-legend__item {
+  display: flex;
+  align-items: center;
+  font-size: 20rpx;
+  color: #667085;
+}
+
+.map-legend__dot {
+  width: 18rpx;
+  height: 18rpx;
+  border-radius: 50%;
+  margin-right: 8rpx;
+}
+
+.map-legend__more {
+  font-size: 20rpx;
+  color: #2e6be6;
+  border-left: 2rpx solid #eaecf0;
+  padding-left: 16rpx;
+}
+
+/* ---------- 筛选 ---------- */
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12rpx;
+  padding: 22rpx 24rpx 6rpx;
+}
+
+.filter-group {
+  display: flex;
+  background: #eef1f6;
+  border-radius: 999rpx;
+  padding: 5rpx;
+}
+
+.fbtn {
+  font-size: 22rpx;
+  padding: 10rpx 20rpx;
+  border-radius: 999rpx;
+  color: #667085;
+}
+
+.fbtn.is-on {
+  background: #fff;
+  color: #2e6be6;
+  font-weight: 600;
+  box-shadow: 0 4rpx 12rpx rgba(16, 24, 40, 0.08);
+}
+
+.fbtn--picker {
+  background: #eef1f6;
+  padding: 15rpx 24rpx;
+}
+
+/* ---------- 选中 ---------- */
+.body {
+  padding: 18rpx 24rpx 0;
+}
+
+.sel { margin-bottom: 24rpx; }
+
+.sel__name {
+  font-size: 32rpx;
+  font-weight: 700;
+}
+
+.sel__close {
+  font-size: 36rpx;
+  color: #98a2b3;
+  line-height: 1;
+  padding: 0 6rpx;
+}
+
+.sel__meta {
+  font-size: 23rpx;
+  color: #98a2b3;
+  margin: 8rpx 0 20rpx;
+}
+
+.sel__empty { color: #d0d5dd; }
+
+.sel__bars {
+  display: flex;
+  flex-direction: column;
+  gap: 12rpx;
+}
+
+.sel__bar {
+  height: 46rpx;
+  border-radius: 10rpx;
+  color: #fff;
+  font-size: 21rpx;
+  line-height: 46rpx;
+  padding-left: 16rpx;
+  min-width: 10rpx;
+  max-width: 100%;
+  white-space: nowrap;
+  overflow: hidden;
+}
+
+.sel__bar--lost { background: linear-gradient(90deg, #7aa4f5, #2e6be6); }
+.sel__bar--found { background: linear-gradient(90deg, #ffbc94, #ff7a45); }
+
+.sel__op {
+  margin-top: 22rpx;
+  font-size: 24rpx;
+  color: #2e6be6;
+}
+
+/* ---------- 排行 ---------- */
+.rank {
+  padding: 10rpx 24rpx;
+}
+
+.rank__row {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.rank__row:last-child { border-bottom: none; }
+
+.rank__no {
+  width: 44rpx;
+  height: 44rpx;
+  border-radius: 12rpx;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #fff;
+  background: #c7d3e8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+}
+
+.rank__no--1 { background: #bcd2fb; }
+.rank__no--2 { background: #7aa4f5; }
+.rank__no--3 { background: #f59e0b; }
+.rank__no--4 { background: #f04438; }
+
+.rank__name {
+  font-size: 27rpx;
+  font-weight: 600;
+}
+
+.rank__area {
+  font-size: 20rpx;
+  color: #98a2b3;
+  margin-top: 2rpx;
+}
+
+.rank__bar {
+  width: 180rpx;
+  height: 14rpx;
+  background: #f2f4f7;
+  border-radius: 999rpx;
+  overflow: hidden;
+  flex: none;
+}
+
+.rank__fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #bcd2fb, #2e6be6);
+}
+
+.rank__count {
+  width: 48rpx;
+  text-align: right;
+  font-size: 25rpx;
+  font-weight: 600;
+  flex: none;
+}
+
+/* ---------- 空状态提示 ---------- */
+.empty-hint {
+  background: #fff7e6;
+  color: #b45309;
+  font-size: 22rpx;
+  border-radius: 16rpx;
+  padding: 18rpx 22rpx;
+  margin-bottom: 24rpx;
+  line-height: 1.5;
+}
+
+/* ---------- 校区地标 ---------- */
+.spots {
+  padding: 8rpx 24rpx;
+}
+
+.spot {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 20rpx 0;
+  border-bottom: 2rpx solid #f7f8fa;
+}
+
+.spot:last-child { border-bottom: none; }
+
+.spot__badge {
+  width: 52rpx;
+  height: 52rpx;
+  border-radius: 14rpx;
+  flex: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22rpx;
+  font-weight: 700;
+  color: #98a2b3;
+  background: #f2f4f7;
+}
+
+.spot__badge--1 { background: #eaf1ff; color: #1b47a8; }
+.spot__badge--2 { background: #d6e4fd; color: #1b47a8; }
+.spot__badge--3 { background: #fff7e6; color: #b45309; }
+.spot__badge--4 { background: #feeceb; color: #b42318; }
+
+.spot__name {
+  font-size: 27rpx;
+  font-weight: 600;
+  color: #101828;
+}
+
+.spot__verify {
+  font-size: 18rpx;
+  font-weight: 400;
+  color: #b45309;
+  background: #fff7e6;
+  border-radius: 999rpx;
+  padding: 2rpx 10rpx;
+  margin-left: 10rpx;
+}
+
+.spot__meta {
+  font-size: 20rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+.spot__arrow {
+  font-size: 32rpx;
+  color: #d0d5dd;
+  flex: none;
+}
+
+.map-hint {
+  margin: 28rpx 12rpx 0;
+  font-size: 20rpx;
+  color: #b0b7c3;
+  text-align: center;
+  line-height: 1.6;
+}

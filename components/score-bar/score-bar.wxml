@@ -1,0 +1,19 @@
+<!-- 分项相似度条：支撑“可解释匹配”（方案 6.4 / 11.1） -->
+<view class="sb">
+  <view class="sb__row" wx:for="{{bars}}" wx:key="key" data-key="{{item.key}}" bindtap="onTapBar">
+    <view class="sb__label">
+      <text>{{item.label}}</text>
+      <text wx:if="{{showWeight && item.weight > 0}}" class="sb__weight">w={{item.weightPercent}}%</text>
+    </view>
+    <view class="sb__track">
+      <view
+        class="sb__fill {{item.percent >= 80 ? 'is-high' : (item.percent >= 55 ? 'is-mid' : 'is-low')}} {{item.available ? '' : 'is-off'}}"
+        style="width: {{item.available ? item.percent : 100}}%"
+      ></view>
+    </view>
+    <view class="sb__value">
+      <text wx:if="{{item.available}}">{{item.percent}}%</text>
+      <text wx:else class="sb__na">未参与</text>
+    </view>
+  </view>
+</view>

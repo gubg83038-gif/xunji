@@ -1,0 +1,323 @@
+.hero {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 16rpx 8rpx 28rpx;
+}
+
+.hero__logo {
+  font-size: 56rpx;
+  font-weight: 800;
+  letter-spacing: 6rpx;
+  background: linear-gradient(135deg, #1b47a8, #2e6be6 60%, #4f9cf9);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.hero__slogan {
+  font-size: 23rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}
+
+.hero__bell {
+  position: relative;
+  font-size: 40rpx;
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 6rpx 18rpx rgba(16, 24, 40, 0.08);
+}
+
+.hero__badge {
+  position: absolute;
+  top: -6rpx;
+  right: -4rpx;
+  min-width: 32rpx;
+  height: 32rpx;
+  padding: 0 8rpx;
+  border-radius: 999rpx;
+  background: #f04438;
+  color: #fff;
+  font-size: 20rpx;
+  line-height: 32rpx;
+  text-align: center;
+}
+
+/* ---------- 主入口 ---------- */
+.entries {
+  display: flex;
+  gap: 20rpx;
+}
+
+.entry {
+  flex: 1;
+  border-radius: 28rpx;
+  padding: 32rpx 26rpx;
+  color: #fff;
+  position: relative;
+  overflow: hidden;
+}
+
+.entry--lost {
+  background: linear-gradient(135deg, #3d7bf0, #2e6be6 70%, #1b47a8);
+  box-shadow: 0 14rpx 30rpx rgba(46, 107, 230, 0.28);
+}
+
+.entry--found {
+  background: linear-gradient(135deg, #ffa26b, #ff7a45 70%, #ea6a35);
+  box-shadow: 0 14rpx 30rpx rgba(255, 122, 69, 0.26);
+}
+
+.entry__icon {
+  font-size: 48rpx;
+  margin-bottom: 14rpx;
+}
+
+.entry__title {
+  font-size: 32rpx;
+  font-weight: 700;
+  margin-bottom: 8rpx;
+}
+
+.entry__desc {
+  font-size: 21rpx;
+  opacity: 0.9;
+  line-height: 1.4;
+}
+
+/* ---------- 状态统计 ---------- */
+.stats {
+  margin-top: 24rpx;
+  display: flex;
+  padding: 26rpx 10rpx;
+}
+
+.stats__item {
+  flex: 1;
+  text-align: center;
+}
+
+.stats__num {
+  font-size: 38rpx;
+  font-weight: 700;
+  color: #101828;
+}
+
+.stats__label {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+/* ---------- 持续寻找任务 ---------- */
+.task {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  padding: 24rpx;
+}
+
+.task + .task { margin-top: 18rpx; }
+
+.task__icon {
+  width: 84rpx;
+  height: 84rpx;
+  border-radius: 20rpx;
+  background: #eaf1ff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 40rpx;
+  flex: none;
+}
+
+.task__title {
+  font-size: 30rpx;
+  font-weight: 600;
+}
+
+.task__meta {
+  font-size: 23rpx;
+  color: #98a2b3;
+  margin-top: 6rpx;
+}
+
+.task__right {
+  text-align: right;
+  flex: none;
+}
+
+.task__count {
+  font-size: 21rpx;
+  color: #98a2b3;
+  margin-top: 8rpx;
+}
+
+/* ---------- 类别 ---------- */
+.cats {
+  display: flex;
+  flex-wrap: wrap;
+  padding: 16rpx 8rpx 10rpx;
+}
+
+/* 每个类别是一个足够大的点击区域（≥112rpx 高），并带按下反馈，
+   避免“点了没反应”的错觉 */
+.cat {
+  width: 25%;
+  min-height: 132rpx;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 18rpx 6rpx;
+  border-radius: 18rpx;
+}
+
+.cat--hover {
+  background: #eaf1ff;
+  transform: scale(0.96);
+}
+
+.cat__icon {
+  font-size: 46rpx;
+  line-height: 1.2;
+}
+
+.cat__name {
+  font-size: 21rpx;
+  color: #475467;
+  margin-top: 10rpx;
+  line-height: 1.3;
+}
+
+/* ---------- 热力 ---------- */
+.heat__row {
+  display: flex;
+  align-items: center;
+  margin-bottom: 16rpx;
+}
+
+.heat__name {
+  width: 200rpx;
+  font-size: 24rpx;
+  color: #475467;
+}
+
+.heat__bar {
+  flex: 1;
+  height: 18rpx;
+  background: #f2f4f7;
+  border-radius: 999rpx;
+  overflow: hidden;
+  margin: 0 16rpx;
+}
+
+.heat__fill {
+  height: 100%;
+  border-radius: 999rpx;
+  background: linear-gradient(90deg, #ffd6a8, #ff7a45);
+  max-width: 100%;
+}
+
+.heat__val {
+  width: 48rpx;
+  text-align: right;
+  font-size: 24rpx;
+  font-weight: 600;
+}
+
+.heat__hint {
+  margin-top: 10rpx;
+  font-size: 20rpx;
+  color: #98a2b3;
+}
+
+/* ---------- 最新拾物 ---------- */
+.recent {
+  padding: 8rpx 24rpx;
+}
+
+.recent__item {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 22rpx 0;
+  border-bottom: 2rpx solid #f2f4f7;
+}
+
+.recent__item:last-child { border-bottom: none; }
+
+.recent__icon {
+  width: 72rpx;
+  height: 72rpx;
+  border-radius: 18rpx;
+  background: #f6f7fb;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34rpx;
+  flex: none;
+}
+
+.recent__title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.recent__meta {
+  font-size: 22rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+.recent__tags {
+  flex: none;
+  max-width: 240rpx;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.recent__tags .tag { margin: 0 0 6rpx 8rpx; }
+
+/* ---------- 工具 ---------- */
+.tools__item {
+  display: flex;
+  align-items: center;
+  gap: 18rpx;
+  padding: 18rpx 0;
+}
+
+.tools__icon { font-size: 40rpx; }
+
+.tools__title {
+  font-size: 28rpx;
+  font-weight: 600;
+}
+
+.tools__desc {
+  font-size: 22rpx;
+  color: #98a2b3;
+  margin-top: 4rpx;
+}
+
+.tools__arrow {
+  font-size: 36rpx;
+  color: #d0d5dd;
+}
+
+.footnote {
+  margin: 36rpx 12rpx 0;
+  font-size: 20rpx;
+  color: #b0b7c3;
+  line-height: 1.6;
+  text-align: center;
+}
