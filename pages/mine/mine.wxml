@@ -1,24 +1,29 @@
 <view class="page">
-  <!-- 用户卡 -->
-  <view class="profile card">
-    <view class="profile__avatar">{{user.nickName}}</view>
-    <view class="grow">
-      <view class="profile__name">
-        {{user.nickName}}
-        <text class="profile__switch" bindtap="onSwitchUser">切换身份</text>
-      </view>
-      <view class="profile__meta">{{user.college}} · 信用分 {{user.credit}}</view>
-      <view class="profile__stats">
-        <text>发布失物 {{stats.lostCount}} 条</text>
-        <text class="profile__dot">·</text>
-        <text>拾物 {{stats.foundCount}} 条</text>
-        <text class="profile__dot">·</text>
-        <text>归还 {{stats.returnedCount}} 件</text>
-      </view>
+  <!-- 用户卡（对照 UI 设计稿：大圆形头像 + 药丸用户名 + 右上角入口） -->
+  <view class="profile">
+    <view class="profile__avatar">👤</view>
+    <view class="profile__pill">
+      <text class="profile__pill-name">{{user.nickName}}</text>
+      <text class="profile__pill-arrow" bindtap="onSwitchUser">个人主页 ›</text>
     </view>
     <view class="profile__bell" bindtap="goNotify">
       🔔
       <view wx:if="{{unread}}" class="profile__badge">{{unread}}</view>
+    </view>
+  </view>
+
+  <!-- 资料条（学院 / 信用分 / 统计） -->
+  <view class="profile-meta card">
+    <view class="profile-meta__row">
+      <text class="profile-meta__college">{{user.college}}</text>
+      <text class="profile-meta__credit">信用分 {{user.credit}}</text>
+    </view>
+    <view class="profile__stats">
+      <text>发布失物 {{stats.lostCount}} 条</text>
+      <text class="profile__dot">·</text>
+      <text>拾物 {{stats.foundCount}} 条</text>
+      <text class="profile__dot">·</text>
+      <text>归还 {{stats.returnedCount}} 件</text>
     </view>
   </view>
 
@@ -106,14 +111,14 @@
     />
   </block>
 
-  <!-- 工具 -->
+  <!-- 工具（对照 UI 设计稿：每行左侧配 3D 图标） -->
   <view class="section">
     <view class="section-head">
       <text class="section-title">工具与设置</text>
     </view>
     <view class="tools card">
       <view class="tools__item" bindtap="goAdmin">
-        <text class="tools__icon">📊</text>
+        <image class="tools__icon-img ui-icon ui-icon--sm" src="/static/ui/ic-search.png" mode="aspectFit" />
         <view class="grow">
           <view class="tools__title">管理看板与实验</view>
           <view class="tools__desc">统计指标、类别分布、消融实验 Recall@K / MRR</view>
@@ -122,7 +127,7 @@
       </view>
       <view class="divider"></view>
       <view class="tools__item" bindtap="onFeedback">
-        <text class="tools__icon">🔁</text>
+        <image class="tools__icon-img ui-icon ui-icon--sm" src="/static/ui/ic-mailbox.png" mode="aspectFit" />
         <view class="grow">
           <view class="tools__title">匹配反馈与样本</view>
           <view class="tools__desc">正样本 / 弱负样本的采集与用途</view>
@@ -131,7 +136,7 @@
       </view>
       <view class="divider"></view>
       <view class="tools__item" bindtap="onResetDemo">
-        <text class="tools__icon">♻️</text>
+        <image class="tools__icon-img ui-icon ui-icon--sm" src="/static/ui/ic-gear.png" mode="aspectFit" />
         <view class="grow">
           <view class="tools__title">重置演示数据</view>
           <view class="tools__desc">恢复内置演示故事线，答辩前使用</view>
@@ -140,7 +145,7 @@
       </view>
       <view class="divider"></view>
       <view class="tools__item" bindtap="onAbout">
-        <text class="tools__icon">ℹ️</text>
+        <image class="tools__icon-img ui-icon ui-icon--sm" src="/static/ui/ic-envelope.png" mode="aspectFit" />
         <view class="grow">
           <view class="tools__title">关于「寻迹」</view>
           <view class="tools__desc">产品定位、闭环设计与匹配公式</view>

@@ -10,20 +10,20 @@
   width: 168rpx;
   flex: none;
   font-size: 24rpx;
-  color: #475467;
+  color: var(--c-ink-2);
   display: flex;
   flex-direction: column;
 }
 
 .sb__weight {
   font-size: 18rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 .sb__track {
   flex: 1;
   height: 16rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #f2f4f7;
   overflow: hidden;
   margin: 0 16rpx;
@@ -31,15 +31,15 @@
 
 .sb__fill {
   height: 100%;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   transition: width 0.35s ease;
 }
 
-.sb__fill.is-high { background: linear-gradient(90deg, #4ade80, #12b76a); }
-.sb__fill.is-mid { background: linear-gradient(90deg, #7aa4f5, #2e6be6); }
-.sb__fill.is-low { background: linear-gradient(90deg, #fbbf24, #f59e0b); }
+.sb__fill.is-high { background: linear-gradient(90deg, #4ade80, var(--c-success)); }
+.sb__fill.is-mid { background: linear-gradient(90deg, #7aa4f5, var(--c-primary)); }
+.sb__fill.is-low { background: linear-gradient(90deg, #fbbf24, var(--c-warn)); }
 .sb__fill.is-off {
-  background: repeating-linear-gradient(45deg, #eaecf0, #eaecf0 8rpx, #f6f7fb 8rpx, #f6f7fb 16rpx);
+  background: repeating-linear-gradient(45deg, var(--c-line), var(--c-line) 8rpx, #f6f7fb 8rpx, #f6f7fb 16rpx);
 }
 
 .sb__value {
@@ -48,11 +48,11 @@
   text-align: right;
   font-size: 24rpx;
   font-weight: 600;
-  color: #101828;
+  color: var(--c-ink);
 }
 
 .sb__na {
   font-size: 20rpx;
   font-weight: 400;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }

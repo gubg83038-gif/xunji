@@ -13,10 +13,10 @@
   ],
   "window": {
     "backgroundTextStyle": "dark",
-    "navigationBarBackgroundColor": "#F6F7FB",
+    "navigationBarBackgroundColor": "#EAF2FF",
     "navigationBarTitleText": "寻迹",
     "navigationBarTextStyle": "black",
-    "backgroundColor": "#F6F7FB"
+    "backgroundColor": "#EAF2FF"
   },
   "tabBar": {
     "color": "#98A2B3",
@@ -24,10 +24,30 @@
     "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
     "list": [
-      { "pagePath": "pages/home/home", "text": "首页" },
-      { "pagePath": "pages/matches/matches", "text": "匹配" },
-      { "pagePath": "pages/map/map", "text": "地图" },
-      { "pagePath": "pages/mine/mine", "text": "我的" }
+      {
+        "pagePath": "pages/home/home",
+        "text": "首页",
+        "iconPath": "static/tabbar/home.png",
+        "selectedIconPath": "static/tabbar/home-on.png"
+      },
+      {
+        "pagePath": "pages/matches/matches",
+        "text": "匹配",
+        "iconPath": "static/tabbar/match.png",
+        "selectedIconPath": "static/tabbar/match-on.png"
+      },
+      {
+        "pagePath": "pages/map/map",
+        "text": "地图",
+        "iconPath": "static/tabbar/map.png",
+        "selectedIconPath": "static/tabbar/map-on.png"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "我的",
+        "iconPath": "static/tabbar/mine.png",
+        "selectedIconPath": "static/tabbar/mine-on.png"
+      }
     ]
   },
   "style": "v2",

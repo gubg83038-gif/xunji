@@ -1,46 +1,57 @@
-<!-- 候选匹配卡片：缩略图 + 时空信息 + 综合匹配度 + 主要匹配原因（方案 6.3） -->
+<!--
+  候选匹配卡片（对照 UI 设计稿）
+  布局：左侧物品缩略图 + 下方来源用户 ｜ 右侧大号匹配度 + 查看详情按钮
+  下方保留时空信息、标签与可解释证据（这是本项目的核心卖点，不能为美观牺牲）
+-->
 <view class="mc" wx:if="{{match}}" bindtap="onTap">
-  <view class="mc__top">
-    <view class="mc__rank" wx:if="{{rank}}">TOP {{rank}}</view>
-    <view class="mc__score {{match.passed ? 'is-high' : ''}}">
-      <text class="mc__score-num">{{match.percent}}</text>
-      <text class="mc__score-pct">%</text>
-    </view>
-    <view class="mc__score-label">综合匹配度</view>
-  </view>
+  <view class="mc__rank" wx:if="{{rank}}">TOP {{rank}}</view>
 
-  <view class="mc__body">
-    <view class="mc__thumb thumb">
-      <!-- hasImage 由视图模型预计算：demo:// 是演示图库标识，不能当图片资源渲染 -->
-      <image
-        wx:if="{{match.counterpart.hasImage && !imageError}}"
-        src="{{match.counterpart.image}}"
-        mode="aspectFill"
-        binderror="onImageError"
-      />
-      <view wx:else class="thumb__fallback">{{match.counterpart.icon}}</view>
-      <view class="mc__thumb-tag">{{match.counterpart.typeLabel}}</view>
+  <view class="mc__main">
+    <!-- 左：缩略图 -->
+    <view class="mc__left">
+      <view class="mc__thumb thumb">
+        <!-- hasImage 由视图模型预计算：demo:// 是演示图库标识，不能当图片资源渲染 -->
+        <image
+          wx:if="{{match.counterpart.hasImage && !imageError}}"
+          src="{{match.counterpart.image}}"
+          mode="aspectFill"
+          binderror="onImageError"
+        />
+        <view wx:else class="thumb__fallback">{{match.counterpart.icon}}</view>
+        <view class="mc__thumb-tag">{{match.counterpart.typeLabel}}</view>
+      </view>
+      <view class="mc__from ellipsis">{{match.counterpart.ownerName || '匿名同学'}} 发布</view>
     </view>
 
-    <view class="mc__info grow">
-      <view class="mc__title ellipsis">{{match.counterpart.title}}</view>
-      <view class="mc__meta">
-        <text class="mc__meta-icon">📍</text>
-        <text class="ellipsis">{{match.counterpart.locationName}}</text>
+    <!-- 右：匹配度 + 详情（对照设计稿：百分比放在浅蓝紫椭圆里） -->
+    <view class="mc__right">
+      <view class="mc__score-label">综合匹配度</view>
+      <view class="score-ellipse mc__score {{match.passed ? 'is-high' : ''}}">
+        <text class="score-big__num">{{match.percent}}</text>
+        <text class="score-big__pct">%</text>
       </view>
-      <view class="mc__meta">
-        <text class="mc__meta-icon">🕒</text>
-        <text>{{match.counterpart.timeText}}</text>
-      </view>
-      <view class="mc__tags">
-        <text wx:for="{{match.counterpart.tags}}" wx:key="*this" class="tag tag--gray">{{item}}</text>
-      </view>
+      <view class="btn btn--sm btn--primary mc__detail-btn" catchtap="onTap">查看详情</view>
     </view>
   </view>
 
-  <view class="mc__geo">
-    <text class="mc__geo-chip">{{match.geoText}}</text>
-    <text class="mc__geo-chip">{{match.timeText}}</text>
+  <view class="mc__info">
+    <view class="mc__title ellipsis">{{match.counterpart.title}}</view>
+    <view class="mc__meta-line">
+      <text class="mc__meta-icon">📍</text>
+      <text class="ellipsis">{{match.counterpart.locationName}}</text>
+      <text class="mc__meta-sep">·</text>
+      <text>{{match.geoText}}</text>
+    </view>
+    <view class="mc__meta-line">
+      <text class="mc__meta-icon">🕒</text>
+      <text>{{match.counterpart.timeText}}</text>
+      <text class="mc__meta-sep">·</text>
+      <text>{{match.timeText}}</text>
+    </view>
+  </view>
+
+  <view class="mc__tags">
+    <text wx:for="{{match.counterpart.tags}}" wx:key="*this" class="tag">{{item}}</text>
   </view>
 
   <view class="mc__reasons" wx:if="{{match.reasonTexts.length}}">

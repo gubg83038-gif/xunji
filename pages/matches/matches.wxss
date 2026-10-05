@@ -11,7 +11,7 @@
   width: 300rpx;
   padding: 20rpx 22rpx;
   margin-right: 16rpx;
-  border-radius: 24rpx;
+  border-radius: var(--r-md);
   background: #fff;
   border: 2rpx solid transparent;
   box-shadow: 0 6rpx 18rpx rgba(16, 24, 40, 0.05);
@@ -22,7 +22,7 @@
 }
 
 .ctx__item.is-on {
-  border-color: #2e6be6;
+  border-color: var(--c-primary);
   background: #f5f9ff;
 }
 
@@ -42,26 +42,42 @@
 
 .ctx__meta {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
 
-/* ---------- 统计条 ---------- */
+/* ---------- 统计条（对照设计稿：一句醒目的结论 + 统计细节）---------- */
 .sum {
   margin: 12rpx 24rpx 0;
-  padding: 22rpx 24rpx;
-  background: linear-gradient(135deg, #f0f6ff, #eaf1ff);
-  border-radius: 22rpx;
+  padding: 26rpx 26rpx;
+  background: linear-gradient(135deg, #f0f6ff, #eef0ff 60%, #f3edff);
+  border-radius: var(--r-lg);
+  box-shadow: 0 8rpx 22rpx rgba(79, 142, 247, 0.10);
+}
+
+.sum__headline {
+  font-size: 30rpx;
+  font-weight: 600;
+  color: var(--c-ink);
+}
+
+.sum__headline .sum__num {
+  font-size: 38rpx;
+  font-weight: 800;
+  color: var(--c-primary);
+  margin: 0 6rpx;
 }
 
 .sum__main {
   display: flex;
   align-items: baseline;
-  font-size: 24rpx;
-  color: #1b47a8;
+  flex-wrap: wrap;
+  margin-top: 10rpx;
+  font-size: 23rpx;
+  color: var(--c-primary-deep);
 }
 
 .sum__num {
@@ -76,6 +92,8 @@
 
 .sum__passed { font-weight: 600; }
 
+.sum__avg { font-weight: 600; }
+
 .sum__sub {
   font-size: 21rpx;
   color: #4763a8;
@@ -83,7 +101,7 @@
 }
 
 .sum__link {
-  color: #2e6be6;
+  color: var(--c-primary);
   text-decoration: underline;
   margin-left: 10rpx;
 }
@@ -104,16 +122,16 @@
 .sort {
   font-size: 23rpx;
   padding: 10rpx 22rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #fff;
   color: #667085;
-  border: 2rpx solid #eaecf0;
+  border: 2rpx solid var(--c-line);
 }
 
 .sort.is-on {
-  background: #2e6be6;
+  background: var(--c-primary);
   color: #fff;
-  border-color: #2e6be6;
+  border-color: var(--c-primary);
   font-weight: 600;
 }
 
@@ -122,12 +140,12 @@
   height: 60rpx;
   border-radius: 50%;
   background: #fff;
-  border: 2rpx solid #eaecf0;
+  border: 2rpx solid var(--c-line);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 30rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
 }
 
 /* ---------- 过滤 ---------- */
@@ -142,15 +160,15 @@
   font-size: 22rpx;
   padding: 10rpx 20rpx;
   margin-right: 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #f2f4f7;
   color: #667085;
   vertical-align: middle;
 }
 
 .filter.is-on {
-  background: #eaf1ff;
-  color: #1b47a8;
+  background: var(--c-primary-weak);
+  color: var(--c-primary-deep);
   font-weight: 600;
 }
 
@@ -169,7 +187,7 @@
 
 .search__input {
   background: #fff;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 18rpx 70rpx 18rpx 30rpx;
   font-size: 25rpx;
   box-shadow: 0 4rpx 14rpx rgba(16, 24, 40, 0.04);
@@ -180,7 +198,7 @@
   right: 26rpx;
   top: 50%;
   transform: translateY(-50%);
-  color: #98a2b3;
+  color: var(--c-ink-3);
   font-size: 32rpx;
 }
 
@@ -198,4 +216,16 @@
   color: #b0b7c3;
   text-align: center;
   line-height: 1.6;
+}
+
+/* ---------- 吉祥物探头（对照设计稿：列表底部的小鼋）---------- */
+.peek {
+  display: flex;
+  justify-content: center;
+  padding: 20rpx 0 8rpx;
+}
+
+.peek .mascot--peek {
+  width: 230rpx;
+  height: 230rpx;
 }

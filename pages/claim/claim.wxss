@@ -1,3 +1,41 @@
+/* ---------- 核验说明渐变卡（对照 UI 设计稿：蓝色面板）---------- */
+.verify-hero {
+  background: linear-gradient(135deg, #2f8fe0 0%, #3aa0e8 45%, #4fb8e8 100%);
+  border-radius: var(--r-lg);
+  padding: 40rpx 34rpx;
+  color: #fff;
+  box-shadow: var(--sh-hero);
+  margin-bottom: 24rpx;
+}
+
+.verify-hero__title {
+  font-size: 38rpx;
+  font-weight: 700;
+  line-height: 1.45;
+  letter-spacing: 1rpx;
+  text-align: center;
+}
+
+.verify-hero__text {
+  margin-top: 16rpx;
+  font-size: 23rpx;
+  line-height: 1.6;
+  opacity: 0.92;
+  text-align: center;
+}
+
+/* 吉祥物（放在问题下方，对照设计稿） */
+.claim-mascot {
+  display: flex;
+  justify-content: center;
+  padding: 24rpx 0 0;
+}
+
+.claim-mascot .mascot--peek {
+  width: 240rpx;
+  height: 240rpx;
+}
+
 /* ---------- 步骤条 ---------- */
 .steps {
   display: flex;
@@ -18,7 +56,7 @@
   height: 52rpx;
   border-radius: 50%;
   background: #f2f4f7;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   font-size: 24rpx;
   font-weight: 600;
   display: flex;
@@ -28,38 +66,38 @@
 
 .step__label {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 10rpx;
   text-align: center;
 }
 
 .step.is-on .step__dot {
-  background: #2e6be6;
+  background: var(--c-primary);
   color: #fff;
 }
 
-.step.is-on .step__label { color: #1b47a8; font-weight: 600; }
+.step.is-on .step__label { color: var(--c-primary-deep); font-weight: 600; }
 
 .step.is-done .step__dot {
-  background: #12b76a;
+  background: var(--c-success);
   color: #fff;
 }
 
 .step.is-done .step__label { color: #067647; }
 
 .step.is-fail .step__dot {
-  background: #f04438;
+  background: var(--c-danger);
   color: #fff;
 }
 
 .step__bar {
   flex: 1;
   height: 4rpx;
-  background: #eaecf0;
+  background: var(--c-line);
   margin: 0 -20rpx 26rpx;
 }
 
-.step__bar.is-on { background: #12b76a; }
+.step__bar.is-on { background: var(--c-success); }
 
 /* ---------- 物品对照 ---------- */
 .pair {
@@ -77,9 +115,9 @@
   display: inline-block;
   font-size: 19rpx;
   padding: 3rpx 12rpx;
-  border-radius: 999rpx;
-  background: #eaf1ff;
-  color: #1b47a8;
+  border-radius: var(--r-pill);
+  background: var(--c-primary-weak);
+  color: var(--c-primary-deep);
   margin-bottom: 10rpx;
 }
 
@@ -92,7 +130,7 @@
 
 .pair__meta {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 
@@ -110,7 +148,7 @@
 .notice__title {
   font-size: 28rpx;
   font-weight: 600;
-  color: #1b47a8;
+  color: var(--c-primary-deep);
 }
 
 .notice__text {
@@ -138,8 +176,8 @@
   font-size: 20rpx;
   font-weight: 700;
   color: #fff;
-  background: #2e6be6;
-  border-radius: 8rpx;
+  background: var(--c-primary);
+  border-radius: var(--r-sm);
   padding: 2rpx 10rpx;
   margin: 6rpx 14rpx 0 0;
   flex: none;
@@ -161,7 +199,7 @@
   font-size: 21rpx;
   color: #667085;
   background: #f2f4f7;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 8rpx 20rpx;
 }
 
@@ -177,15 +215,15 @@
   line-height: 1;
 }
 
-.result__score.is-good { color: #12b76a; }
-.result__score.is-mid { color: #f59e0b; }
-.result__score.is-bad { color: #f04438; }
+.result__score.is-good { color: var(--c-success); }
+.result__score.is-mid { color: var(--c-warn); }
+.result__score.is-bad { color: var(--c-danger); }
 
 .result__pct { font-size: 30rpx; }
 
 .result__label {
   font-size: 22rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 8rpx;
 }
 
@@ -196,16 +234,16 @@
 
 .result__tip {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   line-height: 1.6;
   margin-top: 18rpx;
 }
 
 .ans {
   font-size: 26rpx;
-  color: #101828;
+  color: var(--c-ink);
   background: #f9fafb;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   padding: 18rpx 20rpx;
   line-height: 1.6;
 }
@@ -218,13 +256,13 @@
   margin-top: 12rpx;
 }
 
-.ans__reason { color: #98a2b3; }
+.ans__reason { color: var(--c-ink-3); }
 
 .priv {
   font-size: 24rpx;
-  color: #475467;
+  color: var(--c-ink-2);
   background: #f9fafb;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   padding: 16rpx 20rpx;
   margin-top: 10rpx;
 }
@@ -232,5 +270,5 @@
 .op {
   margin-top: 20rpx;
   font-size: 24rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
 }

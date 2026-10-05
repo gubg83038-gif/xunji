@@ -1,7 +1,7 @@
 .switcher {
   display: flex;
   background: #eef1f6;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 6rpx;
   margin-bottom: 20rpx;
 }
@@ -12,33 +12,88 @@
   padding: 18rpx 0;
   font-size: 28rpx;
   color: #667085;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   font-weight: 600;
 }
 
 .switcher__item.is-active {
   background: #fff;
-  color: #2e6be6;
+  color: var(--c-primary);
   box-shadow: 0 6rpx 16rpx rgba(16, 24, 40, 0.08);
 }
 
+/* ---------- 上传区（对照 UI 设计稿：整块青色渐变面板 + 相机图标）---------- */
+.uploader {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 300rpx;
+  margin-bottom: 24rpx;
+  border-radius: var(--r-lg);
+  background: linear-gradient(140deg, #d8f5f2 0%, #d6ecfb 45%, #e2e6fb 100%);
+  border: 3rpx dashed rgba(79, 142, 247, 0.35);
+  overflow: hidden;
+}
+
+/* 相机素材压在左上角（设计稿的位置） */
+.uploader__icon {
+  position: absolute;
+  left: 10rpx;
+  top: 6rpx;
+  width: 130rpx;
+  height: 130rpx;
+  opacity: 0.95;
+}
+
+.uploader__plus {
+  font-size: 76rpx;
+  font-weight: 200;
+  color: rgba(79, 142, 247, 0.6);
+  line-height: 1;
+  margin-top: 24rpx;
+}
+
+.uploader__text {
+  margin-top: 14rpx;
+  font-size: 25rpx;
+  color: #5b6b8c;
+}
+
+/* 右下角的点阵装饰（设计稿里的细节点缀） */
+.uploader__dots {
+  position: absolute;
+  right: 26rpx;
+  bottom: 22rpx;
+  width: 96rpx;
+  height: 60rpx;
+  background-image: radial-gradient(rgba(79, 142, 247, 0.35) 3rpx, transparent 3rpx);
+  background-size: 18rpx 18rpx;
+}
+
 .tipbar {
-  background: #eaf1ff;
-  color: #1b47a8;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--c-primary-deep);
   font-size: 23rpx;
-  border-radius: 16rpx;
+  border-radius: var(--r-md);
   padding: 18rpx 22rpx;
   margin-bottom: 20rpx;
   line-height: 1.5;
 }
 
 .tipbar__link {
-  color: #2e6be6;
+  color: var(--c-primary);
   text-decoration: underline;
   margin-left: 8rpx;
 }
 
 /* ---------- 图片 ---------- */
+.image-add__cam {
+  width: 48rpx;
+  height: 48rpx;
+}
+
 .images {
   display: flex;
   flex-wrap: wrap;
@@ -48,7 +103,7 @@
 .image-box {
   width: 180rpx;
   height: 180rpx;
-  border-radius: 20rpx;
+  border-radius: var(--r-md);
   overflow: hidden;
   position: relative;
   background: #f2f4f7;
@@ -97,7 +152,7 @@
 .image-add {
   width: 180rpx;
   height: 180rpx;
-  border-radius: 20rpx;
+  border-radius: var(--r-md);
   border: 2rpx dashed #c7d3e8;
   display: flex;
   flex-direction: column;
@@ -116,7 +171,7 @@
 
 /* ---------- 地点 / 时间 ---------- */
 .picker-value__arrow {
-  color: #98a2b3;
+  color: var(--c-ink-3);
   font-size: 24rpx;
 }
 
@@ -152,13 +207,13 @@
 
 .attr__val {
   font-size: 27rpx;
-  color: #101828;
+  color: var(--c-ink);
   padding: 10rpx 0;
 }
 
 .attr__input {
   background: #f9fafb;
-  border-radius: 12rpx;
+  border-radius: var(--r-sm);
   padding: 14rpx 18rpx;
   font-size: 26rpx;
 }
@@ -167,28 +222,28 @@
   flex: none;
   font-size: 19rpx;
   padding: 4rpx 12rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #f2f4f7;
   color: #667085;
 }
 
 .attr__src.is-user {
-  background: #eaf1ff;
-  color: #1b47a8;
+  background: var(--c-primary-weak);
+  color: var(--c-primary-deep);
 }
 
 .attr__op {
   flex: none;
   font-size: 24rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   padding: 0 6rpx;
 }
 
-.attr__op--cancel { color: #98a2b3; }
+.attr__op--cancel { color: var(--c-ink-3); }
 
 .attr__empty {
   font-size: 24rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   padding: 20rpx 0;
 }
 
@@ -203,15 +258,15 @@
 .chip {
   font-size: 23rpx;
   padding: 12rpx 20rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #f4f6fa;
-  color: #475467;
+  color: var(--c-ink-2);
   border: 2rpx solid transparent;
 }
 
 .chip.is-on {
-  background: #eaf1ff;
-  color: #1b47a8;
+  background: var(--c-primary-weak);
+  color: var(--c-primary-deep);
   border-color: #bcd2fb;
   font-weight: 600;
 }

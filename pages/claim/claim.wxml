@@ -34,6 +34,14 @@
 
   <!-- 回答阶段 -->
   <block wx:if="{{stage === 'answering'}}">
+    <!-- 渐变说明卡（对照 UI 设计稿的蓝色问题面板） -->
+    <view class="verify-hero">
+      <view class="verify-hero__title">请回答私有特征问题，证明物品归属</view>
+      <view class="verify-hero__text">
+        答案不会公开展示，只用于与拾物者记录的隐藏特征比对。越具体越容易通过。
+      </view>
+    </view>
+
     <view class="card notice">
       <view class="notice__title">🔒 这一步是防冒领核验</view>
       <view class="notice__text">
@@ -69,6 +77,11 @@
     </view>
 
     <view class="card safety" bindtap="onSafety">⚠️ 安全与隐私提示</view>
+
+    <!-- 吉祥物（对照设计稿：核验页底部的小鼋） -->
+    <view class="claim-mascot">
+      <image class="mascot mascot--peek" src="/static/ui/mascot-think.png" mode="aspectFit" />
+    </view>
 
     <view class="footer-placeholder"></view>
     <view class="footer-bar">

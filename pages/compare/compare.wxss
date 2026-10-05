@@ -1,120 +1,189 @@
-/* ---------- 结论卡 ---------- */
-.verdict {
+/* ---------- 三段式对照头（对照 UI 设计稿）----------
+   左紫标签 ｜ 中间白色圆形大分数 ｜ 右青标签。
+   圆形用负 margin 压在两块标签之上，形成设计稿的叠压层次。 */
+.duo-head {
   display: flex;
-  gap: 26rpx;
-  align-items: center;
-  background: linear-gradient(135deg, #ffffff, #f4f8ff);
+  align-items: flex-start;
+  justify-content: space-between;
+  padding: 0 8rpx;
+  margin-bottom: -46rpx;
+  position: relative;
+  z-index: 2;
 }
 
-.verdict__left {
+.duo-head__side {
+  flex: 1;
+  min-width: 0;
+  padding: 20rpx 16rpx;
+  font-size: 27rpx;
+  font-weight: 700;
+  color: #fff;
   text-align: center;
+  border-radius: var(--r-md);
+}
+
+.duo-head__side--lost {
+  background: linear-gradient(135deg, #8b7bf0, #6f8de8);
+  margin-right: -26rpx;
+}
+
+.duo-head__side--found {
+  background: linear-gradient(135deg, #5fc8e8, #7fd8d0);
+  margin-left: -26rpx;
+}
+
+.duo-head__score {
   flex: none;
-  width: 200rpx;
+  width: 180rpx;
+  height: 180rpx;
+  border-radius: 50%;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 12rpx 30rpx rgba(46, 107, 230, 0.22);
+  position: relative;
+  z-index: 3;
 }
 
-.verdict__score {
-  font-size: 68rpx;
+.duo-head__num {
+  font-size: 62rpx;
   font-weight: 800;
-  color: #2e6be6;
   line-height: 1;
+  background: var(--g-score);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
 }
 
-.verdict__pct { font-size: 30rpx; }
+.duo-head__pct {
+  font-size: 26rpx;
+  font-weight: 700;
+  color: var(--c-primary);
+  margin-left: 4rpx;
+}
 
-.verdict__label {
-  font-size: 21rpx;
-  color: #98a2b3;
-  margin-top: 6rpx;
+/* ---------- 双栏对照 ---------- */
+.duo {
+  display: flex;
+  gap: 16rpx;
+  padding: 66rpx 0 0;
+}
+
+.duo__col {
+  flex: 1;
+  min-width: 0;
+  border-radius: var(--r-lg);
+  padding: 24rpx 20rpx 28rpx;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.duo__col--lost {
+  background: linear-gradient(170deg, #ede8fd 0%, #eaeafd 100%);
+}
+
+.duo__col--found {
+  background: linear-gradient(170deg, #e4f6fb 0%, #e6f8f2 100%);
+}
+
+.duo__img {
+  width: 100%;
+  height: 240rpx;
+  border-radius: var(--r-md);
+  background: #fff;
+  overflow: hidden;
+}
+
+.duo__img image {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.duo__title {
+  margin-top: 16rpx;
+  font-size: 26rpx;
+  font-weight: 600;
+  text-align: center;
+  max-width: 100%;
+}
+
+.duo__pills {
+  margin-top: 16rpx;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12rpx;
+}
+
+/* 属性药丸（对照设计稿：左紫右青） */
+.pill {
+  max-width: 100%;
+  padding: 10rpx 22rpx;
+  border-radius: var(--r-pill);
+  font-size: 23rpx;
+  text-align: center;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pill--lost {
+  background: #ded0fb;
+  color: #5b3fa8;
+}
+
+.pill--found {
+  background: #cfeef8;
+  color: #0d6f8c;
+}
+
+/* ---------- 结论与建议 ---------- */
+.verdict {
+  margin-top: 28rpx;
+  background: linear-gradient(135deg, #ffffff, #f2f7ff);
+  border-radius: var(--r-lg);
+  padding: 28rpx;
 }
 
 .verdict__badge {
   display: inline-block;
-  margin-top: 12rpx;
-  font-size: 20rpx;
-  padding: 4rpx 14rpx;
-  border-radius: 999rpx;
+  font-size: 21rpx;
+  font-weight: 600;
+  padding: 6rpx 18rpx;
+  border-radius: var(--r-pill);
   background: #f2f4f7;
   color: #667085;
 }
 
+/* 超过阈值：实心绿药丸，一眼可见（设计稿的「匹配成功」态） */
 .verdict__badge.is-pass {
-  background: #e7f8f0;
-  color: #067647;
+  background: linear-gradient(135deg, var(--c-success), #3ecfa0);
+  color: #fff;
+  box-shadow: 0 8rpx 18rpx rgba(18, 183, 106, 0.26);
 }
 
 .verdict__advice {
-  font-size: 27rpx;
+  margin-top: 16rpx;
+  font-size: 28rpx;
   font-weight: 600;
   line-height: 1.5;
 }
 
 .verdict__weights {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 10rpx;
 }
 
-/* ---------- 双图 ---------- */
-.duo {
-  display: flex;
-  align-items: stretch;
-  padding: 24rpx 20rpx;
-}
-
-.duo__side {
-  flex: 1;
-  min-width: 0;
-}
-
-.duo__tag {
-  font-size: 20rpx;
-  padding: 4rpx 14rpx;
-  border-radius: 999rpx;
-  display: inline-block;
-  margin-bottom: 12rpx;
-}
-
-.duo__tag--lost { background: #eaf1ff; color: #1b47a8; }
-.duo__tag--found { background: #fff1e9; color: #c2410c; }
-
-.duo__img {
-  width: 100%;
-  height: 220rpx;
-}
-
-.duo__title {
-  font-size: 27rpx;
-  font-weight: 600;
-  margin-top: 14rpx;
-}
-
-.duo__meta {
-  font-size: 21rpx;
-  color: #98a2b3;
-  margin-top: 4rpx;
-}
-
-.duo__mid {
-  width: 110rpx;
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 10rpx;
-}
-
-.duo__line {
-  width: 2rpx;
-  height: 70rpx;
-  background: #e6eefc;
-}
-
-.duo__score {
-  font-size: 24rpx;
-  font-weight: 700;
-  color: #2e6be6;
-}
+/* ---------- 旧「双图并列」样式已移除 ----------
+   结构改成了三段式头部 + 两栏药丸（见上方 .duo-head / .duo / .duo__col）。
+   这里曾经有一整套 .duo__side / .duo__tag / .duo__mid / .duo__line / .duo__score，
+   已无任何 WXML 引用，删掉避免与 .duo 系列混淆。
+   注意：.duo 与 .duo__img / .duo__title 仍在使用，定义在上方。 */
 
 /* ---------- tabs ---------- */
 .tabs {
@@ -128,15 +197,15 @@
   text-align: center;
   font-size: 25rpx;
   padding: 18rpx 0;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #fff;
   color: #667085;
-  border: 2rpx solid #eaecf0;
+  border: 2rpx solid var(--c-line);
 }
 
 .tab.is-on {
-  background: #2e6be6;
-  border-color: #2e6be6;
+  background: var(--c-primary);
+  border-color: var(--c-primary);
   color: #fff;
   font-weight: 600;
 }
@@ -147,14 +216,14 @@
   line-height: 1.7;
   color: #344054;
   background: #f9fafb;
-  border-radius: 16rpx;
+  border-radius: var(--r-sm);
   padding: 22rpx;
   margin-top: 16rpx;
 }
 
 .explain__op {
   font-size: 22rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   margin-top: 14rpx;
 }
 
@@ -177,17 +246,17 @@
 }
 
 .ev--pos { color: #067647; }
-.ev--pos .ev__dot { background: #12b76a; }
+.ev--pos .ev__dot { background: var(--c-success); }
 .ev--neg { color: #b42318; }
-.ev--neg .ev__dot { background: #f04438; }
+.ev--neg .ev__dot { background: var(--c-danger); }
 .ev--warn { color: #b45309; }
-.ev--warn .ev__dot { background: #f59e0b; }
+.ev--warn .ev__dot { background: var(--c-warn); }
 
 .priv {
   font-size: 24rpx;
-  color: #475467;
+  color: var(--c-ink-2);
   background: #f9fafb;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   padding: 16rpx 20rpx;
   margin-top: 12rpx;
 }
@@ -205,8 +274,8 @@
 
 .table__head {
   font-size: 21rpx;
-  color: #98a2b3;
-  border-bottom: 2rpx solid #eaecf0;
+  color: var(--c-ink-3);
+  border-bottom: 2rpx solid var(--c-line);
 }
 
 .table__row:last-child { border-bottom: none; }
@@ -229,7 +298,7 @@
   flex: 1;
   min-width: 0;
   font-size: 25rpx;
-  color: #101828;
+  color: var(--c-ink);
   padding-right: 8rpx;
 }
 
@@ -241,13 +310,13 @@
 
 .table__empty {
   font-size: 24rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   padding: 24rpx 0;
 }
 
 .raw__label {
   font-size: 22rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin: 18rpx 0 8rpx;
 }
 
@@ -256,7 +325,7 @@
   line-height: 1.65;
   color: #344054;
   background: #f9fafb;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   padding: 18rpx 20rpx;
 }
 
@@ -272,18 +341,18 @@
   width: 160rpx;
   flex: none;
   font-size: 24rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 .space__v {
   font-size: 26rpx;
-  color: #101828;
+  color: var(--c-ink);
 }
 
 .mapentry {
   margin-top: 18rpx;
   font-size: 24rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
 }
 
 /* ---------- 时间线 ---------- */
@@ -307,23 +376,23 @@
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  background: #98a2b3;
+  background: var(--c-ink-3);
   flex: none;
 }
 
-.tl__dot--lost_publish { background: #2e6be6; }
+.tl__dot--lost_publish { background: var(--c-primary); }
 .tl__dot--found { background: #ff7a45; }
 .tl__dot--found_publish { background: #ffb088; }
 .tl__dot--match { background: #6941c6; }
-.tl__dot--claim { background: #f59e0b; }
+.tl__dot--claim { background: var(--c-warn); }
 .tl__dot--verify { background: #026aa2; }
-.tl__dot--confirm { background: #12b76a; }
+.tl__dot--confirm { background: var(--c-success); }
 .tl__dot--returned { background: #067647; }
 
 .tl__line {
   width: 2rpx;
   flex: 1;
-  background: #eaecf0;
+  background: var(--c-line);
   margin: 6rpx 0;
   min-height: 40rpx;
 }
@@ -343,6 +412,6 @@
 
 .tl__time {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 6rpx;
 }

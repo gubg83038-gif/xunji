@@ -40,7 +40,7 @@
   color: #344054;
   margin-top: 14rpx;
   background: #f9fafb;
-  border-radius: 16rpx;
+  border-radius: var(--r-sm);
   padding: 22rpx;
 }
 
@@ -57,19 +57,19 @@
   width: 180rpx;
   flex: none;
   font-size: 24rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 .attr-row__v {
   font-size: 26rpx;
-  color: #101828;
+  color: var(--c-ink);
 }
 
 .priv {
   font-size: 24rpx;
-  color: #475467;
+  color: var(--c-ink-2);
   background: #f9fafb;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   padding: 16rpx 20rpx;
   margin-top: 10rpx;
 }
@@ -105,23 +105,23 @@
   width: 16rpx;
   height: 16rpx;
   border-radius: 50%;
-  background: #98a2b3;
+  background: var(--c-ink-3);
   flex: none;
 }
 
-.tl__dot--lost_publish { background: #2e6be6; }
+.tl__dot--lost_publish { background: var(--c-primary); }
 .tl__dot--found { background: #ff7a45; }
 .tl__dot--found_publish { background: #ffb088; }
 .tl__dot--match { background: #6941c6; }
-.tl__dot--claim { background: #f59e0b; }
+.tl__dot--claim { background: var(--c-warn); }
 .tl__dot--verify { background: #026aa2; }
-.tl__dot--confirm { background: #12b76a; }
+.tl__dot--confirm { background: var(--c-success); }
 .tl__dot--returned { background: #067647; }
 
 .tl__line {
   width: 2rpx;
   flex: 1;
-  background: #eaecf0;
+  background: var(--c-line);
   margin: 6rpx 0;
   min-height: 36rpx;
 }
@@ -141,6 +141,6 @@
 
 .tl__time {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 6rpx;
 }

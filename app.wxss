@@ -1,6 +1,10 @@
 /* ============================================================
    「寻迹」全局设计系统
    视觉语言：物品卡片 + 匹配证据 + 地图 + 时间线 + 状态反馈
+
+   风格基调（对照 UI 设计稿）：
+     浅蓝 → 淡紫的渐变背景、大圆角白卡、胶囊按钮、
+     彩色药丸标签、柔和阴影、大量留白。
    ============================================================ */
 page {
   --c-primary: #2e6be6;
@@ -21,10 +25,39 @@ page {
   --c-bg: #f6f7fb;
   --c-card: #ffffff;
 
-  --r-sm: 12rpx;
-  --r-md: 20rpx;
-  --r-lg: 28rpx;
-  --r-xl: 40rpx;
+  /* ---- 设计稿新增：渐变与装饰色 ---- */
+  /**
+   * 页面背景渐变。
+   * 取自设计稿的「背景.png」：顶部青绿 → 中段天蓝 → 底部淡紫。
+   * 比初版更亮更饱和，这是设计稿的主要视觉基调。
+   */
+  --g-page: linear-gradient(180deg, #9fe8e0 0%, #8fd8f5 22%, #a8c9f5 52%, #c3b6ef 78%, #d9c8f2 100%);
+  /** 首页两张入口大卡（设计稿：丢失=紫，捡到=绿） */
+  --g-hero-lost: linear-gradient(100deg, #8b7bf0 0%, #6f8de8 42%, #7fc9e8 100%);
+  --g-hero-found: linear-gradient(100deg, #6fd8b0 0%, #7fe0c8 45%, #9ae8d8 100%);
+  --g-hero-blue: var(--g-hero-lost);
+  --g-hero-green: var(--g-hero-found);
+  /** 主按钮（设计稿是紫蓝渐变胶囊） */
+  --g-primary: linear-gradient(100deg, #7b7cf0 0%, #4f8ef7 100%);
+  /** 匹配度强调色（设计稿里的大号百分比） */
+  --g-score: linear-gradient(135deg, #2e6be6, #7b5cf0);
+  /** 轻量渐变面（图标底、徽标底） */
+  --g-soft: linear-gradient(135deg, #eef4ff, #f3edff);
+  /** 匹配度椭圆底色（设计稿里 92% 外面那圈椭圆） */
+  --g-ellipse: linear-gradient(150deg, #dbe6ff 0%, #cdd8fb 55%, #e2d9f8 100%);
+
+  /* ---- 设计稿新增：阴影 ---- */
+  --sh-card: 0 10rpx 32rpx rgba(46, 107, 230, 0.10);
+  --sh-hero: 0 16rpx 36rpx rgba(123, 124, 240, 0.26);
+  --sh-hero-green: 0 16rpx 36rpx rgba(111, 216, 176, 0.30);
+  --sh-btn: 0 12rpx 28rpx rgba(79, 142, 247, 0.30);
+
+  /* ---- 圆角整体放大（设计稿卡片更圆润）---- */
+  --r-sm: 16rpx;
+  --r-md: 24rpx;
+  --r-lg: 36rpx;
+  --r-xl: 48rpx;
+  --r-pill: 999rpx;
 
   --sp-1: 8rpx;
   --sp-2: 16rpx;
@@ -49,13 +82,26 @@ picker {
 }
 
 /* ---------- 布局 ---------- */
+/**
+ * 页面容器带渐变背景。
+ * 用 min-height 而不是固定高度，保证内容超长时渐变自然延伸。
+ */
 .page {
   min-height: 100vh;
-  padding: 24rpx 24rpx calc(48rpx + env(safe-area-inset-bottom));
+  padding: 24rpx 28rpx calc(48rpx + env(safe-area-inset-bottom));
+  background: var(--g-page);
 }
 
 .page--flush {
   padding: 0 0 calc(48rpx + env(safe-area-inset-bottom));
+}
+
+/**
+ * 不要渐变背景的页面（例如地图页：整屏是地图，渐变会露出缝隙）。
+ * 用 transparent 而不是覆盖成纯色，便于页面自己控制。
+ */
+.page--plain {
+  background: transparent;
 }
 
 .page-header {
@@ -63,32 +109,32 @@ picker {
 }
 
 .page-title {
-  font-size: 46rpx;
+  font-size: 50rpx;
   font-weight: 700;
   letter-spacing: 1rpx;
 }
 
 .page-subtitle {
-  margin-top: 6rpx;
+  margin-top: 8rpx;
   font-size: 25rpx;
   color: var(--c-ink-3);
 }
 
 .section {
-  margin-top: 28rpx;
+  margin-top: 32rpx;
 }
 
 .section-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
-  margin-bottom: 18rpx;
+  margin-bottom: 20rpx;
   padding: 0 6rpx;
 }
 
 .section-title {
-  font-size: 32rpx;
-  font-weight: 600;
+  font-size: 34rpx;
+  font-weight: 700;
 }
 
 .section-more {
@@ -110,21 +156,55 @@ picker {
   min-width: 0;
 }
 
-/* ---------- 卡片 ---------- */
+/* ---------- 卡片（设计稿：更圆、更大留白、柔和投影）---------- */
 .card {
   background: var(--c-card);
   border-radius: var(--r-lg);
-  padding: 28rpx;
-  box-shadow: 0 8rpx 28rpx rgba(16, 24, 40, 0.06);
+  padding: 32rpx;
+  box-shadow: var(--sh-card);
 }
 
 .card + .card {
-  margin-top: 20rpx;
+  margin-top: 24rpx;
 }
 
 .card--flat {
   box-shadow: none;
   border: 2rpx solid var(--c-line);
+}
+
+/* ---------- 首页入口大卡（设计稿的两张彩色卡）---------- */
+.hero-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  min-height: 190rpx;
+  padding: 36rpx 34rpx;
+  border-radius: var(--r-xl);
+  color: #fff;
+  box-shadow: var(--sh-hero);
+}
+
+.hero-card--green {
+  box-shadow: var(--sh-hero-green);
+}
+
+.hero-card__title {
+  font-size: 42rpx;
+  font-weight: 700;
+  letter-spacing: 2rpx;
+}
+
+.hero-card__sub {
+  margin-top: 10rpx;
+  font-size: 24rpx;
+  opacity: 0.92;
+}
+
+.hero-card__emoji {
+  font-size: 84rpx;
+  line-height: 1;
+  opacity: 0.95;
 }
 
 /* ---------- 文字 ---------- */
@@ -149,13 +229,14 @@ picker {
   overflow: hidden;
 }
 
-/* ---------- 标签 ---------- */
+/* ---------- 标签（设计稿：更饱满的彩色药丸）---------- */
 .tag {
   display: inline-block;
-  padding: 4rpx 14rpx;
-  margin: 0 10rpx 10rpx 0;
-  border-radius: 999rpx;
-  font-size: 22rpx;
+  padding: 8rpx 20rpx;
+  margin: 0 12rpx 12rpx 0;
+  border-radius: var(--r-pill);
+  font-size: 23rpx;
+  font-weight: 500;
   background: var(--c-primary-weak);
   color: var(--c-primary-deep);
 }
@@ -170,15 +251,19 @@ picker {
   border: 2rpx solid var(--c-line);
   color: var(--c-ink-2);
 }
+/* 设计稿里的金属/材质类标签：浅紫底 */
+.tag--violet { background: #f2ecff; color: #6941c6; }
+/* 设计稿里的描述类标签：浅青底 */
+.tag--cyan { background: #e4f6fb; color: #0d7d9c; }
 
-/* ---------- 按钮 ---------- */
+/* ---------- 按钮（设计稿：胶囊形 + 渐变 + 投影）---------- */
 .btn {
   display: flex;
   align-items: center;
   justify-content: center;
-  height: 92rpx;
-  border-radius: var(--r-md);
-  font-size: 30rpx;
+  height: 100rpx;
+  border-radius: var(--r-pill);
+  font-size: 32rpx;
   font-weight: 600;
   border: none;
   line-height: 1;
@@ -187,9 +272,9 @@ picker {
 .btn::after { border: none; }
 
 .btn--primary {
-  background: linear-gradient(135deg, #3d7bf0, #2e6be6);
+  background: var(--g-primary);
   color: #fff;
-  box-shadow: 0 12rpx 28rpx rgba(46, 107, 230, 0.28);
+  box-shadow: var(--sh-btn);
 }
 
 .btn--ghost {
@@ -209,10 +294,10 @@ picker {
 }
 
 .btn--sm {
-  height: 64rpx;
+  height: 68rpx;
   font-size: 25rpx;
-  padding: 0 26rpx;
-  border-radius: 999rpx;
+  padding: 0 30rpx;
+  border-radius: var(--r-pill);
 }
 
 .btn--block { width: 100%; }
@@ -221,6 +306,83 @@ picker {
   opacity: 0.45;
   box-shadow: none;
 }
+
+/* ---------- 大号匹配度（设计稿：椭圆底 + 醒目的百分比）---------- */
+.score-big {
+  display: flex;
+  align-items: baseline;
+  gap: 4rpx;
+  color: var(--c-primary);
+}
+
+/**
+ * 设计稿里的匹配度是放在一个浅蓝紫椭圆里的。
+ * 用椭圆容器包住数字，比纯文字更醒目，也更贴合设计稿。
+ */
+.score-ellipse {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  padding: 14rpx 30rpx;
+  border-radius: 50%;
+  background: var(--g-ellipse);
+  border: 3rpx solid rgba(255, 255, 255, 0.9);
+  box-shadow: inset 0 4rpx 12rpx rgba(255, 255, 255, 0.75),
+              0 6rpx 16rpx rgba(79, 142, 247, 0.16);
+}
+
+.score-big__num {
+  font-size: 68rpx;
+  font-weight: 800;
+  line-height: 1;
+  background: var(--g-score);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.score-big__pct {
+  font-size: 28rpx;
+  font-weight: 700;
+  color: var(--c-primary);
+}
+
+.score-big__label {
+  margin-top: 8rpx;
+  font-size: 23rpx;
+  color: var(--c-ink-3);
+}
+
+/* ---------- 吉祥物（设计稿素材，放在卡片装饰位）---------- */
+.mascot {
+  flex: none;
+  display: block;
+}
+
+.mascot--hero {
+  width: 190rpx;
+  height: 190rpx;
+}
+
+.mascot--peek {
+  width: 220rpx;
+  height: 220rpx;
+}
+
+.mascot--empty {
+  width: 200rpx;
+  height: 200rpx;
+}
+
+/* ---------- 3D 图标（设计稿素材）---------- */
+.ui-icon {
+  display: block;
+  flex: none;
+}
+
+.ui-icon--lg { width: 96rpx; height: 96rpx; }
+.ui-icon--md { width: 72rpx; height: 72rpx; }
+.ui-icon--sm { width: 52rpx; height: 52rpx; }
 
 /* ---------- 表单 ---------- */
 .form-item {

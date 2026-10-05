@@ -5,12 +5,26 @@
     <view class="switcher__item {{kind === 'found' ? 'is-active' : ''}}" data-type="found" bindtap="onSwitchType">我捡到东西</view>
   </view>
 
+  <!--
+    上传区（对照 UI 设计稿）
+    设计稿是一整块带青色渐变的圆角面板，左上角有 3D 相机图标，
+    中间一个 + 和「点击上传物品图片」。
+    点整块区域都会触发相册/拍摄。
+  -->
+  <view class="uploader" bindtap="onUploadImage">
+    <image class="uploader__icon ui-icon" src="/static/ui/ic-camera.png" mode="aspectFit" />
+    <view class="uploader__plus">＋</view>
+    <view class="uploader__text">点击上传物品图片</view>
+    <view class="uploader__dots"></view>
+  </view>
+
+  <!-- 填写建议（功能入口，保留） -->
   <view class="tipbar">
     {{kind === 'lost' ? '拍照或写一句描述即可，AI 负责把它变成可检索的结构化信息' : '30 秒完成发布；请务必留下 1—2 个隐藏特征，用于防止冒领'}}
     <text class="tipbar__link" bindtap="onGuide">填写建议</text>
   </view>
 
-  <!-- 图片 -->
+  <!-- 已选图片 / 演示图库 / 相册入口 -->
   <view class="card">
     <view class="form-item">
       <view class="form-label">物品照片<text class="ai-badge">AI 识别</text></view>
@@ -29,7 +43,7 @@
           <text class="image-add__label">演示图库</text>
         </view>
         <view class="image-add" bindtap="onUploadImage">
-          <text class="image-add__icon">📷</text>
+          <image class="image-add__cam ui-icon ui-icon--sm" src="/static/ui/ic-camera.png" mode="aspectFit" />
           <text class="image-add__label">相册/拍摄</text>
         </view>
       </view>

@@ -18,17 +18,20 @@
     </view>
   </scroll-view>
 
-  <!-- 统计条 -->
+  <!-- 统计条（对照设计稿：醒目的一句话 + 统计数字） -->
   <view class="sum" wx:if="{{stat}}">
+    <view class="sum__headline">
+      一共为您找到 <text class="sum__num">{{stat.total}}</text> 个可能匹配物品
+    </view>
     <view class="sum__main">
-      <text class="sum__num">{{stat.total}}</text>
-      <text class="sum__unit">个候选</text>
-      <text class="sum__sep">·</text>
       <text class="sum__passed">{{stat.passed}} 个超过阈值</text>
+      <text class="sum__sep">·</text>
+      <text class="sum__avg">平均匹配度 {{stat.avg}}%</text>
+      <text class="sum__sep">·</text>
+      <text class="sum__link" bindtap="onExplain">算法说明</text>
     </view>
     <view class="sum__sub">
-      平均匹配度 {{stat.avg}}% · 阈值 {{stat.threshold}}% · 检索耗时 {{elapsed}} ms
-      <text class="sum__link" bindtap="onExplain">算法说明</text>
+      阈值 {{stat.threshold}}% · 检索耗时 {{elapsed}} ms
     </view>
   </view>
 
@@ -104,5 +107,10 @@
 
   <view class="hint">
     候选按「视觉 + 属性 + 文字 + 地点 + 时间」五路加权排序，右上方 ↻ 可重新执行一次增量匹配
+  </view>
+
+  <!-- 吉祥物探头（对照设计稿：列表底部的小鼋） -->
+  <view class="peek" wx:if="{{matches.length}}">
+    <image class="mascot mascot--peek" src="/static/ui/mascot-found.png" mode="aspectFit" />
   </view>
 </view>

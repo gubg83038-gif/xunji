@@ -14,13 +14,13 @@
 .es__title {
   font-size: 30rpx;
   font-weight: 600;
-  color: #475467;
+  color: var(--c-ink-2);
   margin-bottom: 12rpx;
 }
 
 .es__desc {
   font-size: 24rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   text-align: center;
   line-height: 1.6;
   max-width: 520rpx;

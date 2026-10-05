@@ -7,7 +7,7 @@
 
 .head__op {
   font-size: 24rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   padding-top: 16rpx;
 }
 
@@ -17,7 +17,7 @@
 }
 
 .ntf.is-unread {
-  border-left: 8rpx solid #2e6be6;
+  border-left: 8rpx solid var(--c-primary);
 }
 
 .ntf__dot {
@@ -27,7 +27,7 @@
   width: 14rpx;
   height: 14rpx;
   border-radius: 50%;
-  background: #f04438;
+  background: var(--c-danger);
 }
 
 .ntf__head {
@@ -44,7 +44,7 @@
 
 .ntf__time {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 .ntf__body {
@@ -59,14 +59,14 @@
   align-items: center;
   justify-content: space-between;
   background: #f9fafb;
-  border-radius: 16rpx;
+  border-radius: var(--r-sm);
   padding: 18rpx 20rpx;
   margin-top: 16rpx;
 }
 
 .ntf__label {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 .ntf__name {
@@ -77,14 +77,14 @@
 
 .ntf__loc {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 2rpx;
 }
 
 .ntf__score {
   font-size: 34rpx;
   font-weight: 700;
-  color: #2e6be6;
+  color: var(--c-primary);
   flex: none;
   margin-left: 18rpx;
 }

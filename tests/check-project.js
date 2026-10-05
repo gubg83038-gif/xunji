@@ -447,7 +447,37 @@ function checkMiniProgramCompilable() {
     }
   }
 
-  // 4) 根目录的文档与 npm 清单也不必打包
+  // 4) tabBar 图标文件必须存在且体积合规
+  //    微信要求图标是本地图片文件（不支持网络图与字体图标），
+  //    路径写错或文件缺失会直接导致编译失败。
+  const tabList = (appJson.tabBar && appJson.tabBar.list) || [];
+  tabList.forEach((item, i) => {
+    checks += 1;
+    if (!item.iconPath) {
+      fail('tabBar 第 ' + (i + 1) + ' 项缺少 iconPath（' + item.text + '）；' +
+        '微信 tabBar 图标必须是本地图片文件');
+      return;
+    }
+    [item.iconPath, item.selectedIconPath].forEach((p, k) => {
+      if (!p) {
+        if (k === 1) fail('tabBar「' + item.text + '」缺少 selectedIconPath');
+        return;
+      }
+      checks += 1;
+      const abs = path.join(ROOT, String(p).replace(/^\//, ''));
+      if (!fs.existsSync(abs)) {
+        fail('tabBar 图标文件不存在：' + p + '（缺失会导致编译失败）');
+        return;
+      }
+      // 微信限制：tabBar 图标不超过 40KB
+      const size = fs.statSync(abs).size;
+      if (size > 40 * 1024) {
+        fail('tabBar 图标超过 40KB：' + p + '（' + Math.round(size / 1024) + 'KB）');
+      }
+    });
+  });
+
+  // 5) 根目录的文档与 npm 清单也不必打包
   ['package.json', 'AGENTS.md', 'CHANGELOG.md', 'README.md'].forEach((name) => {
     checks += 1;
     if (!fs.existsSync(path.join(ROOT, name))) return;
@@ -459,6 +489,72 @@ function checkMiniProgramCompilable() {
 }
 
 checkMiniProgramCompilable();
+
+/* ---------------- 静态图片资源引用 ---------------- */
+
+/**
+ * WXML 里引用的本地图片必须真实存在。
+ *
+ * 为什么需要：接 UI 素材后，图标/吉祥物都以 `/static/...` 路径引用。
+ * 路径写错或素材被删，界面上就是一张空白图——不会报错，只能靠肉眼看出来。
+ * 这类问题在编译期不会有任何提示，必须静态检查兜住。
+ *
+ * 只检查以 /static/ 开头的绝对路径（不含 {{}} 动态绑定）。
+ */
+function checkStaticAssets() {
+  const wxmlFiles = collect(ROOT, '.wxml');
+  /** 去重：同一张图在多个页面引用是正常的，只检查一次 */
+  const seen = {};
+
+  wxmlFiles.forEach((file) => {
+    const src = fs.readFileSync(file, 'utf8');
+    const re = /src\s*=\s*"(\/static\/[^"{}]+)"/g;
+    let m;
+    while ((m = re.exec(src)) !== null) {
+      const ref = m[1];
+      if (seen[ref]) continue; // 已检查过这个路径
+      seen[ref] = rel(file);
+      checks += 1;
+      const abs = path.join(ROOT, ref.replace(/^\//, ''));
+      if (!fs.existsSync(abs)) {
+        fail('WXML 引用的图片不存在：' + ref + '（在 ' + rel(file) + '）');
+        continue;
+      }
+      // 单张图片过大会拖累包体
+      const size = fs.statSync(abs).size;
+      if (size > 200 * 1024) {
+        warn('图片资源较大：' + ref + '（' + Math.round(size / 1024) + 'KB）');
+      }
+    }
+  });
+
+  // 检查 wxss 里的 background-image 引用
+  (function walkWxss(dir) {
+    fs.readdirSync(dir, { withFileTypes: true }).forEach((e) => {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) {
+        if (e.name.startsWith('.') || e.name === 'node_modules') return;
+        walkWxss(full);
+      } else if (e.name.endsWith('.wxss')) {
+        const css = fs.readFileSync(full, 'utf8');
+        const re = /url\(\s*['"]?(\/static\/[^'")]+)['"]?\s*\)/g;
+        let m;
+        while ((m = re.exec(css)) !== null) {
+          const ref = m[1];
+          if (seen[ref]) continue;
+          seen[ref] = rel(full);
+          checks += 1;
+          const abs = path.join(ROOT, ref.replace(/^\//, ''));
+          if (!fs.existsSync(abs)) {
+            fail('WXSS 引用的图片不存在：' + ref + '（在 ' + rel(full) + '）');
+          }
+        }
+      }
+    });
+  })(ROOT);
+}
+
+checkStaticAssets();
 
 /* ---------------- 输出 ---------------- */
 console.log('静态结构校验完成：' + rel(ROOT));

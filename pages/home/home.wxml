@@ -1,27 +1,25 @@
-<view class="page">
-  <!-- 顶部：品牌 + 通知 -->
-  <view class="hero">
-    <view class="hero__brand">
-      <view class="hero__logo">寻迹</view>
-      <view class="hero__slogan">多模态语义检索 · 时空关联 · 可解释匹配</view>
-    </view>
-    <view class="hero__bell" bindtap="goNotify">
-      🔔
-      <view wx:if="{{unread}}" class="hero__badge">{{unread}}</view>
-    </view>
-  </view>
-
-  <!-- 两大主入口（方案 11：降低操作门槛） -->
+<view class="page page--home">
+  <!--
+    两大主入口（对照 UI 设计稿）
+    设计稿里两张卡是**上下错位重叠**的：绿色卡上边缘有一段弧形包边盖住紫色卡。
+    用「负 margin 让两张卡贴合 + 绿色卡左上大圆角」来近似这个层次关系。
+    右侧放吉祥物素材（static/ui/mascot-*.png）。
+  -->
   <view class="entries">
-    <view class="entry entry--lost" bindtap="goPublish" data-type="lost">
-      <view class="entry__icon">🙋</view>
-      <view class="entry__title">我丢了东西</view>
-      <view class="entry__desc">拍照 / 描述，系统持续帮你找</view>
+    <view class="hero-card entries__lost" bindtap="goPublish" data-type="lost">
+      <view class="grow">
+        <view class="hero-card__title">我丢了东西</view>
+        <view class="hero-card__sub">发布失物信息</view>
+      </view>
+      <image class="mascot mascot--hero" src="/static/ui/mascot-lost.png" mode="aspectFit" />
     </view>
-    <view class="entry entry--found" bindtap="goPublish" data-type="found">
-      <view class="entry__icon">🤝</view>
-      <view class="entry__title">我捡到东西</view>
-      <view class="entry__desc">30 秒发布，自动匹配失主</view>
+
+    <view class="hero-card entries__found" bindtap="goPublish" data-type="found">
+      <image class="mascot mascot--hero" src="/static/ui/mascot-found.png" mode="aspectFit" />
+      <view class="grow">
+        <view class="hero-card__title">我捡到东西</view>
+        <view class="hero-card__sub">发布拾物信息</view>
+      </view>
     </view>
   </view>
 
@@ -43,6 +41,47 @@
       <view class="stats__num">{{stats.recoverRate}}%</view>
       <view class="stats__label">归还率</view>
     </view>
+  </view>
+
+  <!-- 最近失物（对照设计稿：三张缩略图 + 状态标签） -->
+  <view class="section" wx:if="{{recentLosts.length}}">
+    <view class="section-head">
+      <text class="section-title">最近失物</text>
+      <text class="section-more" bindtap="goMatches">查看全部</text>
+    </view>
+    <view class="recent-grid">
+      <view
+        class="recent-grid__item"
+        wx:for="{{recentLosts}}"
+        wx:key="id"
+        bindtap="goDetail"
+        data-id="{{item.id}}"
+      >
+        <view class="recent-grid__thumb thumb">
+          <image
+            wx:if="{{item.hasImage}}"
+            src="{{item.image}}"
+            mode="aspectFill"
+          />
+          <view wx:else class="thumb__fallback">{{item.icon}}</view>
+        </view>
+        <view class="recent-grid__badge status status--{{item.statusClass}}">{{item.statusLabel}}</view>
+        <view class="recent-grid__name ellipsis">{{item.title}}</view>
+      </view>
+    </view>
+    <view class="recent-tip" wx:if="{{stats}}">
+      共有 {{stats.lostCount}} 件物品遗失在校园角落
+    </view>
+  </view>
+
+  <!-- 地图入口（对照设计稿：一张带图标的横幅） -->
+  <view class="map-banner" bindtap="goMap">
+    <image class="ui-icon ui-icon--md" src="/static/ui/ic-map.png" mode="aspectFit" />
+    <view class="grow">
+      <view class="map-banner__title">查看失物分布热力图</view>
+      <view class="map-banner__sub">按建筑/区域聚合，不公开精确位置</view>
+    </view>
+    <text class="map-banner__arrow">›</text>
   </view>
 
   <!-- 我的持续寻找任务（方案 6.5） -->

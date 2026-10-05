@@ -13,6 +13,8 @@ Page({
     explanation: '',
     advice: '',
     weightText: '',
+    lostPills: [],
+    foundPills: [],
     reasonList: [],
     conflictList: [],
     uncertainList: [],
@@ -51,6 +53,23 @@ Page({
 
     wx.setNavigationBarTitle({ title: '详细对比 · ' + detail.percent + '% 匹配' });
 
+    /**
+     * 两栏属性药丸（对照 UI 设计稿）。
+     * 设计稿里左栏是紫底药丸、右栏是青底药丸，各放 3—5 条可比较的特征。
+     * 这里从视图模型的 tags 取（已含品牌/颜色/材质/特征），最多 5 条——
+     * 与设计稿的视觉密度一致，也避免药丸堆得太长。
+     */
+    const pillsOf = (view) => {
+      const out = [];
+      if (view.attributes && view.attributes.main_color) out.push(view.attributes.main_color);
+      if (view.attributes && view.attributes.material) out.push(view.attributes.material);
+      if (view.categoryName) out.push(view.categoryName);
+      (view.tags || []).forEach((t) => {
+        if (out.indexOf(t) < 0 && out.length < 5) out.push(t);
+      });
+      return out.slice(0, 5);
+    };
+
     this.setData({
       detail,
       bars: detail.bars,
@@ -59,6 +78,8 @@ Page({
       explanation: detail.explanation,
       advice: detail.advice,
       weightText: detail.weightsText,
+      lostPills: pillsOf(detail.lost),
+      foundPills: pillsOf(detail.found),
       reasonList: detail.reasons.positive || [],
       conflictList: detail.reasons.conflict || [],
       uncertainList: detail.reasons.uncertain || [],

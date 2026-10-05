@@ -1,6 +1,7 @@
+/* 地图页整屏是地图，铺页面渐变会在卡片缝隙里露出色块，所以用透明底 */
 .map-page {
   min-height: 100vh;
-  background: #f6f7fb;
+  background: transparent;
   padding-bottom: 40rpx;
 }
 
@@ -20,14 +21,14 @@
 .campus-bar__name {
   font-size: 32rpx;
   font-weight: 700;
-  color: #1b47a8;
+  color: var(--c-primary-deep);
 }
 
 .campus-bar__coord {
   font-size: 20rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   background: rgba(255, 255, 255, 0.75);
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 3rpx 14rpx;
 }
 
@@ -61,7 +62,7 @@
   align-items: center;
   justify-content: center;
   font-size: 34rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   box-shadow: 0 8rpx 22rpx rgba(16, 24, 40, 0.14);
 }
 
@@ -70,7 +71,7 @@
   left: 24rpx;
   bottom: 24rpx;
   background: rgba(255, 255, 255, 0.95);
-  border-radius: 16rpx;
+  border-radius: var(--r-sm);
   padding: 12rpx 18rpx;
   display: flex;
   align-items: center;
@@ -94,8 +95,8 @@
 
 .map-legend__more {
   font-size: 20rpx;
-  color: #2e6be6;
-  border-left: 2rpx solid #eaecf0;
+  color: var(--c-primary);
+  border-left: 2rpx solid var(--c-line);
   padding-left: 16rpx;
 }
 
@@ -110,20 +111,20 @@
 .filter-group {
   display: flex;
   background: #eef1f6;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 5rpx;
 }
 
 .fbtn {
   font-size: 22rpx;
   padding: 10rpx 20rpx;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   color: #667085;
 }
 
 .fbtn.is-on {
   background: #fff;
-  color: #2e6be6;
+  color: var(--c-primary);
   font-weight: 600;
   box-shadow: 0 4rpx 12rpx rgba(16, 24, 40, 0.08);
 }
@@ -147,14 +148,14 @@
 
 .sel__close {
   font-size: 36rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   line-height: 1;
   padding: 0 6rpx;
 }
 
 .sel__meta {
   font-size: 23rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin: 8rpx 0 20rpx;
 }
 
@@ -168,7 +169,7 @@
 
 .sel__bar {
   height: 46rpx;
-  border-radius: 10rpx;
+  border-radius: var(--r-sm);
   color: #fff;
   font-size: 21rpx;
   line-height: 46rpx;
@@ -179,13 +180,13 @@
   overflow: hidden;
 }
 
-.sel__bar--lost { background: linear-gradient(90deg, #7aa4f5, #2e6be6); }
+.sel__bar--lost { background: linear-gradient(90deg, #7aa4f5, var(--c-primary)); }
 .sel__bar--found { background: linear-gradient(90deg, #ffbc94, #ff7a45); }
 
 .sel__op {
   margin-top: 22rpx;
   font-size: 24rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
 }
 
 /* ---------- 排行 ---------- */
@@ -206,7 +207,7 @@
 .rank__no {
   width: 44rpx;
   height: 44rpx;
-  border-radius: 12rpx;
+  border-radius: var(--r-sm);
   font-size: 22rpx;
   font-weight: 700;
   color: #fff;
@@ -219,8 +220,8 @@
 
 .rank__no--1 { background: #bcd2fb; }
 .rank__no--2 { background: #7aa4f5; }
-.rank__no--3 { background: #f59e0b; }
-.rank__no--4 { background: #f04438; }
+.rank__no--3 { background: var(--c-warn); }
+.rank__no--4 { background: var(--c-danger); }
 
 .rank__name {
   font-size: 27rpx;
@@ -229,7 +230,7 @@
 
 .rank__area {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 2rpx;
 }
 
@@ -237,15 +238,15 @@
   width: 180rpx;
   height: 14rpx;
   background: #f2f4f7;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   overflow: hidden;
   flex: none;
 }
 
 .rank__fill {
   height: 100%;
-  border-radius: 999rpx;
-  background: linear-gradient(90deg, #bcd2fb, #2e6be6);
+  border-radius: var(--r-pill);
+  background: linear-gradient(90deg, #bcd2fb, var(--c-primary));
 }
 
 .rank__count {
@@ -261,7 +262,7 @@
   background: #fff7e6;
   color: #b45309;
   font-size: 22rpx;
-  border-radius: 16rpx;
+  border-radius: var(--r-sm);
   padding: 18rpx 22rpx;
   margin-bottom: 24rpx;
   line-height: 1.5;
@@ -285,26 +286,26 @@
 .spot__badge {
   width: 52rpx;
   height: 52rpx;
-  border-radius: 14rpx;
+  border-radius: var(--r-sm);
   flex: none;
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 22rpx;
   font-weight: 700;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   background: #f2f4f7;
 }
 
-.spot__badge--1 { background: #eaf1ff; color: #1b47a8; }
-.spot__badge--2 { background: #d6e4fd; color: #1b47a8; }
+.spot__badge--1 { background: var(--c-primary-weak); color: var(--c-primary-deep); }
+.spot__badge--2 { background: #d6e4fd; color: var(--c-primary-deep); }
 .spot__badge--3 { background: #fff7e6; color: #b45309; }
 .spot__badge--4 { background: #feeceb; color: #b42318; }
 
 .spot__name {
   font-size: 27rpx;
   font-weight: 600;
-  color: #101828;
+  color: var(--c-ink);
 }
 
 .spot__verify {
@@ -312,14 +313,14 @@
   font-weight: 400;
   color: #b45309;
   background: #fff7e6;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   padding: 2rpx 10rpx;
   margin-left: 10rpx;
 }
 
 .spot__meta {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 

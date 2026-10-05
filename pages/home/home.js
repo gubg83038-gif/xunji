@@ -11,6 +11,7 @@ Page({
     topMatches: [],
     myTasks: [],
     recentFounds: [],
+    recentLosts: [],
     categories: [],
     heatTop: [],
     unread: 0,
@@ -53,6 +54,16 @@ Page({
       .slice(0, 4)
       .map(service.itemView);
 
+    /**
+     * 最近失物（对照设计稿首页的三张缩略图网格）。
+     * itemView 提供 hasImage —— demo:// 演示图标识不能交给 <image src> 渲染。
+     */
+    const recentLosts = store.itemsOf('lost')
+      .filter((x) => x.status !== 'recovered' && x.status !== 'closed')
+      .sort((a, b) => b.createdAt - a.createdAt)
+      .slice(0, 3)
+      .map(service.itemView);
+
     const heatTop = service.heatmap().slice(0, 4);
 
     this.setData({
@@ -60,6 +71,7 @@ Page({
       topMatches,
       myTasks,
       recentFounds,
+      recentLosts,
       heatTop,
       unread: store.unreadCount(userId),
       loading: false

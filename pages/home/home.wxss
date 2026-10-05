@@ -9,7 +9,7 @@
   font-size: 56rpx;
   font-weight: 800;
   letter-spacing: 6rpx;
-  background: linear-gradient(135deg, #1b47a8, #2e6be6 60%, #4f9cf9);
+  background: linear-gradient(135deg, var(--c-primary-deep), var(--c-primary) 60%, #4f9cf9);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
@@ -17,7 +17,7 @@
 
 .hero__slogan {
   font-size: 23rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 6rpx;
 }
 
@@ -41,59 +41,143 @@
   min-width: 32rpx;
   height: 32rpx;
   padding: 0 8rpx;
-  border-radius: 999rpx;
-  background: #f04438;
+  border-radius: var(--r-pill);
+  background: var(--c-danger);
   color: #fff;
   font-size: 20rpx;
   line-height: 32rpx;
   text-align: center;
 }
 
-/* ---------- 主入口 ---------- */
+/* ---------- 主入口（对照 UI 设计稿）----------
+   设计稿的两张卡是**上下错位重叠**的：绿色卡上边缘有一段弧形包边盖住紫色卡。
+   这里用「负 margin 让两张卡贴合 + 绿色卡左上大圆角 + 轻微上移」近似这个层次。
+   右侧/左侧放吉祥物素材。 */
+.page--home {
+  padding-top: 8rpx;
+}
+
 .entries {
   display: flex;
-  gap: 20rpx;
+  flex-direction: column;
 }
 
-.entry {
-  flex: 1;
-  border-radius: 28rpx;
-  padding: 32rpx 26rpx;
-  color: #fff;
+/* 紫色卡：我丢了东西 */
+.entries__lost {
+  background: var(--g-hero-lost);
+  border-radius: var(--r-xl);
+  padding: 30rpx 26rpx 30rpx 34rpx;
+  min-height: 200rpx;
   position: relative;
+  z-index: 1;
+}
+
+/* 绿色卡：我捡到东西 —— 上移贴合，左上大圆角形成"包边"效果 */
+.entries__found {
+  background: var(--g-hero-found);
+  border-radius: var(--r-xl);
+  border-top-left-radius: 96rpx;
+  padding: 30rpx 34rpx 30rpx 26rpx;
+  min-height: 200rpx;
+  margin-top: -54rpx;
+  position: relative;
+  z-index: 2;
+  box-shadow: var(--sh-hero-green);
+}
+
+/* 紫色卡的下半部分会被绿色卡盖住，这里保证文字不被遮挡 */
+.entries__lost .hero-card__title,
+.entries__lost .hero-card__sub {
+  position: relative;
+  z-index: 3;
+}
+
+/* ---------- 最近失物网格（对照设计稿：三张缩略图 + 状态角标）---------- */
+.recent-grid {
+  display: flex;
+  gap: 18rpx;
+}
+
+.recent-grid__item {
+  flex: 1;
+  min-width: 0;
+  position: relative;
+}
+
+.recent-grid__thumb {
+  width: 100%;
+  height: 190rpx;
+  border-radius: var(--r-md);
+  background: #f2f4f7;
   overflow: hidden;
+  box-shadow: 0 6rpx 18rpx rgba(16, 24, 40, 0.08);
 }
 
-.entry--lost {
-  background: linear-gradient(135deg, #3d7bf0, #2e6be6 70%, #1b47a8);
-  box-shadow: 0 14rpx 30rpx rgba(46, 107, 230, 0.28);
+.recent-grid__thumb image {
+  width: 100%;
+  height: 100%;
+  display: block;
 }
 
-.entry--found {
-  background: linear-gradient(135deg, #ffa26b, #ff7a45 70%, #ea6a35);
-  box-shadow: 0 14rpx 30rpx rgba(255, 122, 69, 0.26);
+/* 状态角标压在缩略图左下角（设计稿的位置） */
+.recent-grid__badge {
+  position: absolute;
+  left: 10rpx;
+  bottom: 46rpx;
+  font-size: 19rpx;
+  padding: 4rpx 12rpx;
+  border-radius: var(--r-pill);
+  background: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 4rpx 10rpx rgba(16, 24, 40, 0.12);
 }
 
-.entry__icon {
-  font-size: 48rpx;
-  margin-bottom: 14rpx;
+.recent-grid__name {
+  margin-top: 12rpx;
+  font-size: 23rpx;
+  color: var(--c-ink-2);
+  text-align: center;
 }
 
-.entry__title {
-  font-size: 32rpx;
+.recent-tip {
+  margin-top: 18rpx;
+  text-align: center;
+  font-size: 23rpx;
+  color: var(--c-ink-3);
+}
+
+/* ---------- 地图横幅（对照设计稿）---------- */
+.map-banner {
+  display: flex;
+  align-items: center;
+  gap: 20rpx;
+  margin-top: 28rpx;
+  padding: 26rpx 28rpx;
+  border-radius: var(--r-lg);
+  background: linear-gradient(100deg, #eaf2ff 0%, #e6ecff 55%, #eee7ff 100%);
+  box-shadow: var(--sh-card);
+}
+
+.map-banner__title {
+  font-size: 30rpx;
   font-weight: 700;
-  margin-bottom: 8rpx;
+  color: var(--c-primary-deep);
 }
 
-.entry__desc {
-  font-size: 21rpx;
-  opacity: 0.9;
-  line-height: 1.4;
+.map-banner__sub {
+  margin-top: 6rpx;
+  font-size: 22rpx;
+  color: var(--c-ink-3);
+}
+
+.map-banner__arrow {
+  font-size: 40rpx;
+  color: var(--c-ink-3);
+  flex: none;
 }
 
 /* ---------- 状态统计 ---------- */
 .stats {
-  margin-top: 24rpx;
+  margin-top: 28rpx;
   display: flex;
   padding: 26rpx 10rpx;
 }
@@ -106,12 +190,12 @@
 .stats__num {
   font-size: 38rpx;
   font-weight: 700;
-  color: #101828;
+  color: var(--c-ink);
 }
 
 .stats__label {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 
@@ -128,8 +212,8 @@
 .task__icon {
   width: 84rpx;
   height: 84rpx;
-  border-radius: 20rpx;
-  background: #eaf1ff;
+  border-radius: var(--r-md);
+  background: var(--c-primary-weak);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -144,7 +228,7 @@
 
 .task__meta {
   font-size: 23rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 6rpx;
 }
 
@@ -155,7 +239,7 @@
 
 .task__count {
   font-size: 21rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 8rpx;
 }
 
@@ -178,11 +262,11 @@
   justify-content: center;
   text-align: center;
   padding: 18rpx 6rpx;
-  border-radius: 18rpx;
+  border-radius: var(--r-md);
 }
 
 .cat--hover {
-  background: #eaf1ff;
+  background: var(--c-primary-weak);
   transform: scale(0.96);
 }
 
@@ -193,7 +277,7 @@
 
 .cat__name {
   font-size: 21rpx;
-  color: #475467;
+  color: var(--c-ink-2);
   margin-top: 10rpx;
   line-height: 1.3;
 }
@@ -208,21 +292,21 @@
 .heat__name {
   width: 200rpx;
   font-size: 24rpx;
-  color: #475467;
+  color: var(--c-ink-2);
 }
 
 .heat__bar {
   flex: 1;
   height: 18rpx;
   background: #f2f4f7;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   overflow: hidden;
   margin: 0 16rpx;
 }
 
 .heat__fill {
   height: 100%;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: linear-gradient(90deg, #ffd6a8, #ff7a45);
   max-width: 100%;
 }
@@ -237,7 +321,7 @@
 .heat__hint {
   margin-top: 10rpx;
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
 }
 
 /* ---------- 最新拾物 ---------- */
@@ -256,10 +340,10 @@
 .recent__item:last-child { border-bottom: none; }
 
 .recent__icon {
-  width: 72rpx;
-  height: 72rpx;
-  border-radius: 18rpx;
-  background: #f6f7fb;
+  width: 76rpx;
+  height: 76rpx;
+  border-radius: var(--r-md);
+  background: var(--g-soft);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -274,7 +358,7 @@
 
 .recent__meta {
   font-size: 22rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 
@@ -305,7 +389,7 @@
 
 .tools__desc {
   font-size: 22rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 

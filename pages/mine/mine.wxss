@@ -1,50 +1,89 @@
-/* ---------- 用户卡 ---------- */
+/* ---------- 用户卡（对照 UI 设计稿：大圆形头像 + 药丸用户名）---------- */
 .profile {
   display: flex;
   align-items: center;
-  gap: 24rpx;
-  background: linear-gradient(135deg, #ffffff, #f4f8ff);
+  gap: 20rpx;
+  padding: 22rpx 8rpx 8rpx;
 }
 
+/**
+ * 头像位用圆形（设计稿是圆形头像）。
+ * 里面放 emoji 而不是昵称文本——昵称是两三个字，塞进圆形会撑破布局。
+ * 以后接微信真实头像，把这里换成 <image> 即可。
+ */
 .profile__avatar {
-  width: 112rpx;
-  height: 112rpx;
-  border-radius: 32rpx;
-  background: linear-gradient(135deg, #3d7bf0, #2e6be6);
+  width: 132rpx;
+  height: 132rpx;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #4f8ef7, #7b5cf0);
   color: #fff;
-  font-size: 30rpx;
-  font-weight: 700;
+  font-size: 66rpx;
   display: flex;
   align-items: center;
   justify-content: center;
   flex: none;
+  border: 5rpx solid rgba(255, 255, 255, 0.85);
+  box-shadow: 0 10rpx 24rpx rgba(79, 142, 247, 0.3);
 }
 
-.profile__name {
-  font-size: 34rpx;
+/* 药丸用户名（设计稿里昵称装在一个蓝紫胶囊里） */
+.profile__pill {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 76rpx;
+  padding: 0 26rpx;
+  border-radius: var(--r-pill);
+  background: linear-gradient(100deg, #7b7cf0 0%, #4f8ef7 100%);
+  box-shadow: 0 10rpx 24rpx rgba(79, 142, 247, 0.28);
+}
+
+.profile__pill-name {
+  font-size: 30rpx;
   font-weight: 700;
+  color: #fff;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-.profile__switch {
-  font-size: 20rpx;
-  color: #2e6be6;
-  border: 2rpx solid #bcd2fb;
-  border-radius: 999rpx;
-  padding: 2rpx 12rpx;
-  margin-left: 14rpx;
-  font-weight: 400;
+.profile__pill-arrow {
+  flex: none;
+  font-size: 21rpx;
+  color: rgba(255, 255, 255, 0.88);
+  margin-left: 12rpx;
 }
 
-.profile__meta {
+/* 资料条 */
+.profile-meta {
+  margin-top: 12rpx;
+}
+
+.profile-meta__row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.profile-meta__college {
   font-size: 23rpx;
-  color: #98a2b3;
-  margin-top: 8rpx;
+  color: var(--c-ink-2);
+}
+
+.profile-meta__credit {
+  font-size: 21rpx;
+  color: var(--c-primary-deep);
+  background: var(--c-primary-weak);
+  border-radius: var(--r-pill);
+  padding: 4rpx 16rpx;
 }
 
 .profile__stats {
   font-size: 21rpx;
   color: #667085;
-  margin-top: 10rpx;
+  margin-top: 12rpx;
 }
 
 .profile__dot { margin: 0 10rpx; }
@@ -70,8 +109,8 @@
   min-width: 30rpx;
   height: 30rpx;
   padding: 0 8rpx;
-  border-radius: 999rpx;
-  background: #f04438;
+  border-radius: var(--r-pill);
+  background: var(--c-danger);
   color: #fff;
   font-size: 19rpx;
   line-height: 30rpx;
@@ -90,15 +129,15 @@
   text-align: center;
   font-size: 25rpx;
   padding: 18rpx 0;
-  border-radius: 999rpx;
+  border-radius: var(--r-pill);
   background: #fff;
   color: #667085;
-  border: 2rpx solid #eaecf0;
+  border: 2rpx solid var(--c-line);
 }
 
 .tab.is-on {
-  background: #2e6be6;
-  border-color: #2e6be6;
+  background: var(--c-primary);
+  border-color: var(--c-primary);
   color: #fff;
   font-weight: 600;
 }
@@ -115,8 +154,8 @@
 .item__icon {
   width: 84rpx;
   height: 84rpx;
-  border-radius: 22rpx;
-  background: #eaf1ff;
+  border-radius: var(--r-md);
+  background: var(--c-primary-weak);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -135,7 +174,7 @@
   margin-top: 6rpx;
 }
 
-.item__meta--weak { color: #98a2b3; }
+.item__meta--weak { color: var(--c-ink-3); }
 
 .item__right {
   flex: none;
@@ -144,13 +183,13 @@
 
 .item__count {
   font-size: 20rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 10rpx;
 }
 
 .item__op {
   font-size: 22rpx;
-  color: #2e6be6;
+  color: var(--c-primary);
   margin-top: 10rpx;
 }
 
@@ -171,7 +210,7 @@
 
 .tools__desc {
   font-size: 22rpx;
-  color: #98a2b3;
+  color: var(--c-ink-3);
   margin-top: 4rpx;
 }
 
@@ -186,4 +225,11 @@
   color: #b0b7c3;
   line-height: 1.6;
   text-align: center;
+}
+
+/* ---------- 工具行的 3D 图标（对照设计稿）---------- */
+.tools__icon-img {
+  width: 56rpx;
+  height: 56rpx;
+  margin-right: 20rpx;
 }

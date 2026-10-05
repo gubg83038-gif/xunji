@@ -1,46 +1,50 @@
 <view class="page" wx:if="{{detail}}">
-  <!-- 结论卡 -->
-  <view class="verdict card">
-    <view class="verdict__left">
-      <view class="verdict__score">{{detail.percent}}<text class="verdict__pct">%</text></view>
-      <view class="verdict__label">综合匹配度</view>
-      <view class="verdict__badge {{detail.passed ? 'is-pass' : ''}}">{{detail.passed ? '超过提醒阈值' : '未达提醒阈值'}}</view>
+  <!--
+    三段式对照头（对照 UI 设计稿）
+    左「我的失物」紫色标签 ｜ 中间白色圆形大分数 ｜ 右「拾到物品」青色标签。
+    三者用负 margin 让圆形压在两块标签之上，形成叠压层次。
+  -->
+  <view class="duo-head">
+    <view class="duo-head__side duo-head__side--lost">我的失物</view>
+    <view class="duo-head__score">
+      <text class="duo-head__num">{{detail.percent}}</text>
+      <text class="duo-head__pct">%</text>
     </view>
-    <view class="verdict__right grow">
-      <view class="verdict__advice">{{advice}}</view>
-      <view class="verdict__weights">{{weightText}}</view>
-    </view>
+    <view class="duo-head__side duo-head__side--found">拾到物品</view>
   </view>
 
-  <!-- 双图并列 -->
-  <view class="duo card">
-    <view class="duo__side" bindtap="onPreview" data-url="{{detail.lost.image}}">
-      <view class="duo__tag duo__tag--lost">我的物品（失物）</view>
+  <!-- 双栏对照（对照设计稿：两栏拖粉/青底，各放图片 + 属性药丸） -->
+  <view class="duo">
+    <view class="duo__col duo__col--lost" bindtap="onPreview" data-url="{{detail.lost.image}}">
       <view class="duo__img thumb">
         <image wx:if="{{detail.lost.hasImage}}" src="{{detail.lost.image}}" mode="aspectFill" />
         <view wx:else class="thumb__fallback">{{detail.lost.icon}}</view>
       </view>
       <view class="duo__title ellipsis">{{detail.lost.title}}</view>
-      <view class="duo__meta">{{detail.lost.locationName}}</view>
-      <view class="duo__meta">{{detail.lost.timeText}}</view>
+      <view class="duo__pills">
+        <text class="pill pill--lost" wx:for="{{lostPills}}" wx:key="*this">{{item}}</text>
+        <text class="pill pill--lost">{{detail.lost.locationName}}</text>
+      </view>
     </view>
 
-    <view class="duo__mid">
-      <view class="duo__line"></view>
-      <view class="duo__score">{{detail.percent}}%</view>
-      <view class="duo__line"></view>
-    </view>
-
-    <view class="duo__side" bindtap="onPreview" data-url="{{detail.found.image}}">
-      <view class="duo__tag duo__tag--found">拾到物品</view>
+    <view class="duo__col duo__col--found" bindtap="onPreview" data-url="{{detail.found.image}}">
       <view class="duo__img thumb">
         <image wx:if="{{detail.found.hasImage}}" src="{{detail.found.image}}" mode="aspectFill" />
         <view wx:else class="thumb__fallback">{{detail.found.icon}}</view>
       </view>
       <view class="duo__title ellipsis">{{detail.found.title}}</view>
-      <view class="duo__meta">{{detail.found.locationName}}</view>
-      <view class="duo__meta">{{detail.found.timeText}}</view>
+      <view class="duo__pills">
+        <text class="pill pill--found" wx:for="{{foundPills}}" wx:key="*this">{{item}}</text>
+        <text class="pill pill--found">{{detail.geoText}}</text>
+      </view>
     </view>
+  </view>
+
+  <!-- 结论与建议 -->
+  <view class="verdict card">
+    <view class="verdict__badge {{detail.passed ? 'is-pass' : ''}}">{{detail.passed ? '超过提醒阈值' : '未达提醒阈值'}}</view>
+    <view class="verdict__advice">{{advice}}</view>
+    <view class="verdict__weights">{{weightText}}</view>
   </view>
 
   <!-- 切换页签 -->
