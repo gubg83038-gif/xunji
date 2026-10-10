@@ -75,7 +75,14 @@
       </picker>
     </view>
 
-    <!-- 地点 -->
+    <!--
+      地点
+      ------------------------------------------------------------------
+      结构上刻意分成「标准地点选择器」+「手动输入框」两块独立区域：
+      两者之间用 subfield 的实线分隔符切开，并且输入框自带一层浅底边框，
+      避免出现「自定义输入框和上方选择器边框贴在一起、看起来是同一个框」的
+      视觉重叠（用户反馈的真实现象）。
+    -->
     <view class="form-item">
       <view class="form-label">地点<text class="req">*</text></view>
       <picker mode="selector" range="{{hotLocations}}" range-key="name" bindchange="onPickLocation">
@@ -84,29 +91,40 @@
           <text class="picker-value__arrow">▾</text>
         </view>
       </picker>
-      <input
-        class="input location-input"
-        value="{{locationText}}"
-        placeholder="或直接输入，如“图书馆北门”“三食堂门口”"
-        bindinput="onLocationInput"
-      />
+      <view class="subfield">
+        <view class="subfield__label">或手动输入地点（校园标准地点里没有的，写具体建筑/门/路口）</view>
+        <input
+          class="input subfield__input"
+          value="{{locationText}}"
+          placeholder="如“图书馆北门”“三食堂门口”"
+          bindinput="onLocationInput"
+        />
+      </view>
       <view class="form-hint {{locationMatched ? '' : 't-danger'}}">
         {{locationMatched ? '地点已标准化为校园区域中心点，用于时空重排' : '未识别到标准地点：仍会保留文字描述，但地点相关度不参与加权'}}
       </view>
     </view>
 
-    <!-- 时间 -->
+    <!-- 时间（同上：选择器与自定义输入分开，不叠在一起） -->
     <view class="form-item">
       <view class="form-label">{{kind === 'lost' ? '丢失时间' : '拾取时间'}}<text class="req">*</text></view>
       <view class="time-row">
-        <picker mode="date" value="{{dateStr}}" bindchange="onDateChange">
+        <picker class="time-row__picker" mode="date" value="{{dateStr}}" bindchange="onDateChange">
           <view class="picker-value picker-value--half">{{dateStr}}</view>
         </picker>
-        <picker mode="time" value="{{timeStr}}" bindchange="onTimeChange">
+        <picker class="time-row__picker" mode="time" value="{{timeStr}}" bindchange="onTimeChange">
           <view class="picker-value picker-value--half">{{timeStr}}</view>
         </picker>
       </view>
-      <input class="input location-input" value="{{timeText}}" placeholder="也可以写“今天下午3点左右”" bindinput="onTimeTextInput" />
+      <view class="subfield">
+        <view class="subfield__label">或手动输入时间（支持“今天下午3点左右”这类模糊说法）</view>
+        <input
+          class="input subfield__input"
+          value="{{timeText}}"
+          placeholder="如“今天下午3点左右”“昨天中午”"
+          bindinput="onTimeTextInput"
+        />
+      </view>
       <view class="form-hint">{{kind === 'lost' ? '时间会作为范围参与重排，不精确也没关系' : '拾取时间与失主估计时间越接近，时间相关度越高'}}</view>
     </view>
   </view>
@@ -119,13 +137,21 @@
     </view>
     <view class="form-hint" style="margin-bottom: 12rpx;">
       AI 生成的属性必须允许用户修改，最终记录以确认后的信息为准（模型结果仅作建议）。
+      没识别出来的字段也会列在下面，点一下就能手工补。
+    </view>
+
+    <view class="form-hint" wx:if="{{imageDescription}}">照片观察：{{imageDescription}}</view>
+    <view class="attr" wx:for="{{aiSuggestions}}" wx:key="key">
+      <view class="attr__key">{{item.label}}</view>
+      <view class="attr__val grow">{{item.displayValue}}<view class="form-hint">待确认 · {{item.reason}}</view></view>
+      <view class="attr__op" data-key="{{item.key}}" bindtap="onConfirmAiSuggestion">采用</view>
     </view>
 
     <view class="attr" wx:for="{{attrFields}}" wx:key="key">
       <view class="attr__key">{{item.label}}</view>
       <block wx:if="{{!item.editing}}">
         <view class="attr__val grow" data-key="{{item.key}}" bindtap="onEditAttr">
-          <text>{{item.value || '未识别'}}</text>
+          <text class="{{item.empty ? 'attr__val--empty' : ''}}">{{item.empty ? '未识别 · 点击填写' : item.value}}</text>
         </view>
         <view class="attr__src {{item.source === 'user' ? 'is-user' : ''}}">{{item.sourceLabel}}</view>
       </block>
@@ -145,12 +171,17 @@
 
   <!-- 隐藏核验特征 -->
   <view class="card">
-    <view class="section-title">{{kind === 'found' ? '隐藏核验特征' : '私有特征（选填）'}}</view>
+    <view class="row row--between">
+      <view class="section-title">{{kind === 'found' ? '隐藏核验特征' : '私有特征（选填）'}}</view>
+      <view class="btn btn--sm btn--ghost" wx:if="{{privateSelected.length}}" bindtap="onClearPrivate">全部清空</view>
+    </view>
     <view class="form-hint" style="margin: 10rpx 0 18rpx;">
       {{kind === 'found'
         ? '这些信息不会出现在公开页面，仅用于认领时的防冒领问答。建议保留 1—2 项只有真正失主才可能知道的特征。'
         : '如果你记得某些只有自己知道的细节，填在这里可以在认领时更快通过核验。'}}
     </view>
+
+    <!-- 类别推荐特征：点一下选中，再点一下取消（会记住取消状态，重新提取属性也不会复活） -->
     <view class="chips">
       <view
         class="chip {{privateSelected.indexOf(item) >= 0 ? 'is-on' : ''}}"
@@ -160,18 +191,63 @@
         bindtap="onTogglePrivate"
       >{{item}}</view>
     </view>
-    <view class="chips" wx:if="{{privateSelected.length}}">
-      <view class="chip is-on" wx:for="{{privateSelected}}" wx:key="*this">{{item}}</view>
-    </view>
+
+    <!--
+      已选清单（有序，最多 3 条会进入核验问答）。
+      每一条都带「×」可以删掉——这是用户反馈「自定义问题加错了没法撤回」的直接修复。
+    -->
+    <block wx:if="{{privateSelected.length}}">
+      <view class="plist__title">
+        已选 {{privateSelected.length}} 项
+        <text class="plist__cap">（最多取前 3 项生成核验问题）</text>
+      </view>
+      <view class="plist">
+        <view class="plist__item" wx:for="{{privateSelected}}" wx:key="*this">
+          <text class="plist__no">{{index + 1}}</text>
+          <text class="plist__text grow">{{item}}</text>
+          <view class="plist__del" data-index="{{index}}" catchtap="onRemovePrivate">×</view>
+        </view>
+      </view>
+      <view class="form-hint" wx:if="{{privateSelected.length > 3}}" style="color: #b45309;">
+        当前 {{privateSelected.length}} 项，超出部分不会出现在核验问答里，建议精简到 3 项以内。
+      </view>
+      <view class="plist__undo" wx:if="{{privateDeletedCount}}" bindtap="onRestorePrivate">
+        已删除 {{privateDeletedCount}} 项推荐特征 · 点此恢复
+      </view>
+    </block>
+
     <view class="private-add">
-      <input class="input grow" value="{{privateCustom}}" placeholder="补充自定义隐藏特征" bindinput="onPrivateCustomInput" />
+      <input class="input grow" value="{{privateCustom}}" placeholder="补充自定义隐藏特征，如“杯底有一道长划痕”" bindinput="onPrivateCustomInput" />
       <view class="btn btn--sm btn--ghost" bindtap="onAddPrivateCustom">添加</view>
     </view>
+    <view class="form-hint">添加后如果写错了，点上面对应那一条右侧的「×」就能删掉。</view>
   </view>
 
   <view class="footer-placeholder"></view>
   <view class="footer-bar">
-    <view class="btn btn--plain" style="flex: 1;" bindtap="onRerunExtract">重新提取</view>
-    <view class="btn btn--primary" style="flex: 2;" bindtap="onSubmit">{{submitting ? '发布中…' : (kind === 'lost' ? '发布失物并开始匹配' : '发布拾物并匹配失主')}}</view>
+    <view class="btn btn--primary" style="flex: 1;" bindtap="onSubmit">{{submitting ? '发布中…' : (kind === 'lost' ? '发布失物并开始匹配' : '发布拾物并匹配失主')}}</view>
+  </view>
+
+  <!-- AI 识别状态：页面内反馈，避免系统 Loading 遮挡上下文。 -->
+  <view class="ai-mask" wx:if="{{aiState !== 'idle'}}">
+    <view class="ai-panel">
+      <video
+        wx:if="{{!aiVideoFailed}}"
+        class="ai-panel__video"
+        src="/static/ui/ai-recognizing.mp4"
+        autoplay
+        loop
+        muted
+        controls="{{false}}"
+        show-center-play-btn="{{false}}"
+        show-fullscreen-btn="{{false}}"
+        show-play-btn="{{false}}"
+        object-fit="contain"
+        binderror="onAiVideoError"
+      />
+      <image wx:else class="ai-panel__mascot" src="/static/ui/mascot-think.png" mode="aspectFit" />
+      <view class="ai-panel__title">{{aiMessage}}</view>
+      <view class="ai-panel__dots"><text>•</text><text>•</text><text>•</text></view>
+    </view>
   </view>
 </view>

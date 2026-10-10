@@ -1,5 +1,4 @@
-<view class="page" wx:if="{{claim}}">
-  <!-- 进度 -->
+<view class="page" wx:if="{{claim}}">  <!-- 进度 -->
   <view class="steps card">
     <view class="step {{stage === 'answering' ? 'is-on' : 'is-done'}}">
       <view class="step__dot">1</view>
@@ -32,8 +31,22 @@
     </view>
   </view>
 
+  <!--
+    非本次认领的双方（myRole === 'none'）：不该看到核验问答与状态操作。
+    旧实现会把外人当成 claimant 并把「提交核验回答」等按钮亮出来，
+    服务端虽然会拦，但界面先给了错的暗示。
+  -->
+  <view class="card outsider" wx:if="{{myRole === 'none'}}">
+    <view class="outsider__title">🔒 只有本次认领的双方可以查看</view>
+    <view class="outsider__text">
+      这条认领属于「{{claim.lost.title}}」的失主与「{{claim.found.title}}」的拾物者。
+      隐藏特征答案不会向其他人展示，因此这里不提供核验问答与状态操作。
+    </view>
+    <view class="outsider__op" bindtap="goCompare">查看匹配详情 ›</view>
+  </view>
+
   <!-- 回答阶段 -->
-  <block wx:if="{{stage === 'answering'}}">
+  <block wx:if="{{stage === 'answering' && myRole === 'claimant'}}">
     <!-- 渐变说明卡（对照 UI 设计稿的蓝色问题面板） -->
     <view class="verify-hero">
       <view class="verify-hero__title">请回答私有特征问题，证明物品归属</view>
@@ -48,6 +61,9 @@
         下面问题的答案不会公开展示，只用于与拾物者记录的隐藏特征比对。
         请尽量描述具体细节（位置、形状、颜色、内容），越具体越容易通过。
       </view>
+      <view class="notice__text">
+        💬 提交后会为双方开启一条临时会话，用来商量线下交接的时间与地点。
+      </view>
     </view>
 
     <view class="card" wx:for="{{answers}}" wx:key="qid">
@@ -55,6 +71,25 @@
         <text class="q__index">Q{{index + 1}}</text>
         <text class="q__text grow">{{item.question}}</text>
       </view>
+
+      <!--
+        快捷选项：三选一。
+        旧版是「有 / 没有 / 不确定」三个文字标签，既看不出是单选、点了以后
+        也没有任何状态回执，用户会以为「只有某个选项能点」。
+        现在改成互斥按钮 + 选中高亮，并且选完给一条「太笼统」的提示引导补充细节。
+      -->
+      <view class="quick">
+        <view
+          class="quick__btn {{item.choice === hint ? 'is-on' : ''}}"
+          wx:for="{{hintChips}}"
+          wx:for-item="hint"
+          wx:key="*this"
+          data-index="{{index}}"
+          data-value="{{hint}}"
+          bindtap="onPickOption"
+        >{{hint}}</view>
+      </view>
+
       <textarea
         class="textarea"
         value="{{item.value}}"
@@ -63,17 +98,11 @@
         data-index="{{index}}"
         bindinput="onAnswerInput"
       />
-      <view class="hints">
-        <view
-          class="hint-chip"
-          wx:for="{{hintChips}}"
-          wx:for-item="hint"
-          wx:key="*this"
-          data-index="{{index}}"
-          data-value="{{hint}}"
-          bindtap="onHintTap"
-        >{{hint}}</view>
+      <view class="quick-warn" wx:if="{{item.choice && !item.detailed}}">
+        「{{item.choice}}」只是方向性回答，语义核验分很低（约 10%）。建议再补一句具体细节，
+        例如位置、形状、颜色或内容，拾物者才敢确认。
       </view>
+      <view class="form-hint" wx:elif="{{item.choice}}">已选「{{item.choice}}」，并补充了具体细节 ✅</view>
     </view>
 
     <view class="card safety" bindtap="onSafety">⚠️ 安全与隐私提示</view>
@@ -90,7 +119,7 @@
   </block>
 
   <!-- 已提交 / 结果阶段 -->
-  <block wx:else>
+  <block wx:elif="{{myRole !== 'none'}}">
     <view class="card result">
       <view class="result__score {{claim.verificationScore >= 0.6 ? 'is-good' : (claim.verificationScore >= 0.32 ? 'is-mid' : 'is-bad')}}">
         {{claim.verificationPercent}}<text class="result__pct">%</text>
@@ -130,6 +159,51 @@
       <view class="op" bindtap="onCopyAnswer">复制我的核验回答</view>
     </view>
 
+    <!--
+      核验期临时会话。
+      此前双方只能靠「复制核验回答」互相联系，实际无法商量交接细节；
+      这里在「待确认 / 已通过 / 已归还」三个阶段都提供一条认领单内的临时会话。
+    -->
+    <view class="card chat" wx:if="{{session && session.state !== 'closed'}}">
+      <view class="row row--between">
+        <view class="section-title">临时会话 · {{session.counterpartLabel}}</view>
+        <view class="chat__state chat__state--{{session.state}}">{{session.stateLabel}}</view>
+      </view>
+      <view class="form-hint" style="margin: 10rpx 0 4rpx;">{{session.stateDesc}}</view>
+
+      <scroll-view class="chat__list" scroll-y="{{true}}" scroll-into-view="{{scrollTarget}}" scroll-with-animation="{{true}}">
+        <view class="chat__empty" wx:if="{{!session.hasMessages}}">
+          还没有消息。可以先说明方便交接的时间段和校园里的公共地点（例如图书馆一楼服务台）。
+        </view>
+        <view
+          class="chat__row {{item.mine ? 'is-mine' : ''}}"
+          wx:for="{{session.messages}}"
+          wx:key="id"
+          id="msg-{{item.id}}"
+        >
+          <view class="chat__who">{{item.senderName}} · {{item.timeText}}{{item.redacted ? ' · 已脱敏' : ''}}</view>
+          <view class="chat__bubble">{{item.text}}</view>
+        </view>
+      </scroll-view>
+
+      <view class="chat__input" wx:if="{{session.canSend}}">
+        <input
+          class="chat__field grow"
+          value="{{messageDraft}}"
+          placeholder="约个时间地点，例如“明天中午 12:30 图书馆一楼服务台”"
+          maxlength="200"
+          confirm-type="send"
+          bindinput="onMessageInput"
+          bindconfirm="onSendMessage"
+        />
+        <view class="chat__send {{messageDraft ? '' : 'is-disabled'}}" bindtap="onSendMessage">发送</view>
+      </view>
+      <view class="chat__closed" wx:else>会话已关闭，不再接受新消息。</view>
+      <view class="chat__notice">
+        仅本次认领的双方可见；本会话不是即时通讯，请勿发送手机号、身份证等敏感信息（系统会自动隐藏手机号与社交账号）。
+      </view>
+    </view>
+
     <view class="card" wx:if="{{stage === 'verified'}}">
       <view class="section-title t-success">核验已通过</view>
       <view class="form-hint" style="margin-top: 10rpx;">
@@ -162,4 +236,25 @@
       <view wx:elif="{{stage === 'returned' || stage === 'rejected'}}" class="btn btn--primary" style="flex: 1.6;" bindtap="goMatches">继续寻找其他候选</view>
     </view>
   </block>
+</view>
+
+<!--
+  读不到认领单时的兜底页面。
+  ⚠ 必须把「不存在」和「不是我 / 读失败」分开说：
+     旧实现一律弹「认领单不存在」，但真实原因往往是
+     「本地镜像里没有这张单」（切了身份 / 换了设备），云端其实是有数据的。
+-->
+<view class="page" wx:elif="{{missing || forbidden}}">
+  <view class="card outsider">
+    <view class="outsider__title">{{forbidden ? '🔒 无权查看该认领单' : '⚠️ 暂时读不到这张认领单'}}</view>
+    <view class="outsider__text">{{forbidden || missing}}</view>
+    <view class="outsider__text" wx:if="{{!forbidden}}">
+      可能是网络或云端同步问题。可以下拉刷新 / 重新进入「我的 → 认领记录」再试一次；
+      如果仍然读不到，请确认这条认领是否已被重置演示数据清除。
+    </view>
+  </view>
+  <view class="footer-placeholder"></view>
+  <view class="footer-bar">
+    <view class="btn btn--plain" style="flex: 1;" bindtap="goMatches">返回候选列表</view>
+  </view>
 </view>

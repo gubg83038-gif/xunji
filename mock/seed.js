@@ -46,9 +46,31 @@ function demoImage(key, fallback) {
   return 'demo://' + key;
 }
 
+/**
+ * 推断记录的 kind。
+ *
+ * ⚠ 真实缺陷：这里原本是 `cfg.kind === 'found' ? 'found' : 'lost'`——**没传 kind 就静默兜成 lost**。
+ *   `seedHistory()` 造「已归还案例」的那条拾物记录恰好漏传了 kind，于是它被塞进
+ *   lostItems 集合（kind 字段也被写成 'lost'），造成：
+ *     · 失物数 +1、拾物数 -1，看板统计对不上；
+ *     · 它会被当成候选参与匹配，甚至出现「自己匹配自己」的幽灵候选；
+ *     · 认领链路里 lost/found 角色错乱。
+ *   这与本项目另一处 `ctx.userId = 'u_me'` 是同一类问题：**静默兜底掩盖了调用方的遗漏**。
+ *
+ * 现在按「显式 kind → id 前缀」两级判定，两条线索都没有才回落到 lost，
+ * 让命名与实际归属天然一致（演示数据的 id 一律带 lost_ / found_ 前缀）。
+ */
+function inferKind(cfg) {
+  if (cfg.kind === 'found' || cfg.kind === 'lost') return cfg.kind;
+  const id = String(cfg.id || '');
+  if (id.indexOf('found_') === 0) return 'found';
+  if (id.indexOf('lost_') === 0) return 'lost';
+  return 'lost';
+}
+
 /** 生成记录（与 service.publish 的字段结构完全一致） */
 function buildItem(cfg) {
-  const kind = cfg.kind === 'found' ? 'found' : 'lost';
+  const kind = inferKind(cfg);
   const category = cfg.category;
   const attributes = Object.assign(
     { category },
@@ -749,7 +771,7 @@ function seedHistory() {
   });
   store.insertItem(found);
 
-  const matchId = 'match_' + lost.id + '_' + found.id;
+  const matchId = 'match_' + lost.id + '__' + found.id;
   const match = store.upsertMatch({
     id: matchId,
     lostId: lost.id,

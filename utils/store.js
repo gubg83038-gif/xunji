@@ -165,6 +165,9 @@ function viewToEntity(v, kind) {
       images: v.images || (v.image ? [v.image] : []),
       description: v.description || '',
       imageDescription: v.imageDescription || '',
+      attributesModel: v.attributesModel || 'local',
+      attributeSources: v.attributeSources || {},
+      attributeConfidence: v.attributeConfidence || {},
       // 计算所需的原始字段，一律如实保留
       embeddings: v.embeddings || null,
       attributes: v.attributes || {},
@@ -258,26 +261,44 @@ function writeCloudCache(snap) {
  * 立即从云端刷新镜像（页面 onShow 与写操作后调用）
  * @returns {Promise<boolean>}
  */
-async function refreshFromCloud() {
-  if (!isCloud()) return false;
-  if (cloudState.loading) return false;
+let refreshInFlight = null;
+let refreshRevision = 0;
+const REFRESH_INTERVAL = 30000;
+
+function refreshFromCloud(options) {
+  if (!isCloud()) return Promise.resolve(false);
+  const force = !!(options && options.force);
+  if (force) refreshRevision += 1;
+  // 所有调用者等待同一次同步，避免页面提前认为数据已刷新。
+  if (refreshInFlight) return refreshInFlight;
+  if (!force && !cloudState.error && cloudState.loaded && Date.now() - cloudState.lastSync < REFRESH_INTERVAL)
+    return Promise.resolve(false);
   cloudState.loading = true;
-  try {
-    const api = require('./api');
-    const snap = await api.fetchSnapshot(config.cloud.userId || 'u_me');
-    writeCloudCache(snap);
-    applySnapshot(snap);
-    cloudState.loaded = true;
-    cloudState.lastSync = Date.now();
-    cloudState.error = '';
-    return true;
-  } catch (e) {
-    cloudState.error = e.message || '同步失败';
-    console.error('[寻迹] 云端同步失败：', cloudState.error);
-    return false;
-  } finally {
+  refreshInFlight = (async () => {
+    try {
+      const api = require('./api');
+      let revision;
+      do {
+        revision = refreshRevision;
+        const snap = await api.fetchSnapshot(config.cloud.userId || 'u_me');
+        writeCloudCache(snap);
+        applySnapshot(snap);
+        cloudState.loaded = true;
+        cloudState.lastSync = Date.now();
+        cloudState.error = '';
+        // 同步期间发生写入，再拉一次才能包含写入后的结果。
+      } while (revision !== refreshRevision);
+      return true;
+    } catch (e) {
+      cloudState.error = e.message || '同步失败';
+      console.error('[寻迹] 云端同步失败：', cloudState.error);
+      return false;
+    }
+  })().finally(() => {
     cloudState.loading = false;
-  }
+    refreshInFlight = null;
+  });
+  return refreshInFlight;
 }
 
 /**
@@ -290,7 +311,7 @@ async function initCloud() {
   const cached = readCloudCache();
   if (cached) applySnapshot(cached);
   else init();
-  return refreshFromCloud();
+  return refreshFromCloud({ force: true });
 }
 
 /** 写操作提交到云端（异步，不阻塞界面；失败只记录并提示） */
@@ -299,23 +320,23 @@ function dispatchToCloud(action, payload, fallbackLocal) {
     if (typeof fallbackLocal === 'function') fallbackLocal();
     return;
   }
+  dispatchState.pending += 1;
   try {
     const api = require('./api');
     api.callApi(action, payload).then((data) => {
-      dispatchState.pending -= 1;
       dispatchState.lastOk = Date.now();
       if (typeof fallbackLocal === 'function') fallbackLocal(data);
       // 有实际写入后延迟刷新镜像，保证后续读到的分数与云端一致
       scheduleRefresh();
     }).catch((e) => {
-      dispatchState.pending -= 1;
       dispatchState.lastError = e.message || '提交失败';
       console.error('[寻迹] 云端提交 ' + action + ' 失败：', dispatchState.lastError);
       if (typeof wx !== 'undefined' && wx.showToast) {
         wx.showToast({ title: '云端提交失败，数据仅保存在本机', icon: 'none', duration: 2500 });
       }
-    });
+    }).finally(() => { dispatchState.pending -= 1; });
   } catch (e) {
+    dispatchState.pending = Math.max(0, dispatchState.pending - 1);
     console.error('[寻迹] 云端提交异常：', e);
   }
 }
@@ -328,7 +349,7 @@ function scheduleRefresh(delay) {
   if (refreshTimer) clearTimeout(refreshTimer);
   refreshTimer = setTimeout(() => {
     refreshTimer = null;
-    refreshFromCloud();
+    refreshFromCloud({ force: true });
   }, delay === undefined ? 600 : delay);
 }
 
@@ -425,10 +446,11 @@ function getItem(id) {
   return findBy(d.lostItems, (x) => x.id === id) || findBy(d.foundItems, (x) => x.id === id);
 }
 
-function insertItem(item) {
+function insertItem(item, options) {
   const d = db();
   const list = item.kind === 'lost' ? d.lostItems : d.foundItems;
   list.unshift(item);
+  if (options && options.localOnly) return item;
   // 云端模式：同时提交到云数据库（异步，不阻塞界面）
   dispatchToCloud('item.publish', item, (data) => {
     // 云端确认写入后打标记，后续 item.update 才发请求
@@ -513,6 +535,26 @@ function updateMatch(id, patch) {
   Object.assign(m, patch, { updatedAt: Date.now() });
   // 云端模式下匹配结果由服务端权威计算，本地不重复提交 match 明细
   return m;
+}
+
+/**
+ * 改写 match 的业务 id（与 cloudfunctions/xj-api/store.js 的 renameMatchId 同源）。
+ *
+ * 同一对 (lostId, foundId) 在历史数据里可能存着旧约定的 id，
+ * 需要在入口处收敛成代码使用的那一个，否则认领单会指向查不到的 match。
+ * 这里同时迁移已挂在该 match 上的认领单。
+ */
+function renameMatchId(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return true;
+  const m = getMatch(oldId);
+  if (!m) return false;
+  if (getMatch(newId)) return false;
+  m.id = newId;
+  m.updatedAt = Date.now();
+  db().claims.forEach((c) => {
+    if (c.matchId === oldId) c.matchId = newId;
+  });
+  return true;
 }
 
 function removeMatch(id) {
@@ -654,6 +696,7 @@ module.exports = {
   getMatch,
   upsertMatch,
   updateMatch,
+  renameMatchId,
   removeMatch,
   claims,
   claimsOfLost,

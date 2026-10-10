@@ -20,6 +20,7 @@ const timeUtil = require('./core/time');
 const locations = require('./core/locations');
 const categorical = require('./core/categories');
 const colorUtil = require('./core/color');
+const chat = require('./core/chat');
 const seedData = require('./core/seed-data');
 
 const { LOST_STATUS, FOUND_STATUS, MATCH_STATUS, CLAIM_STATUS, statusInfo } = domain;
@@ -70,12 +71,21 @@ async function viewItem(item) {
  * 安全处理：隐藏特征（认领核验问题）只回传给物品所有者本人，
  *   其他人只拿到数量——否则任何人抓包就能看到核验答案。
  *
+ *   ⚠ 这里必须用两个不同的身份，这是之前「隐藏特征可被抓包读到」的根因：
+ *     · personaId：展示身份，决定 itemView 的「我的/他人」文案，
+ *       演示要切身份，所以允许客户端声明；
+ *     · ownerId：隐私身份，决定 privateFeatures 能不能下发，
+ *       **只认服务端身份**，客户端传什么都不影响。
+ *     不传 ownerId 时退回 personaId（保持旧调用方的行为，但新代码一律显式传）。
+ *
  * @param {object} item 云端实体
- * @param {string} viewerId 当前查看者 id
+ * @param {string} viewerId 展示身份（persona）
+ * @param {string} [ownerId] 服务端身份，用于隐私裁剪；缺省时等于 viewerId
  */
-function toClientEntity(item, viewerId) {
+function toClientEntity(item, viewerId, ownerId) {
   if (!item) return null;
-  const isOwner = !!viewerId && item.userId === viewerId;
+  const identity = ownerId === undefined || ownerId === null ? viewerId : ownerId;
+  const isOwner = !!identity && item.userId === identity;
   const privateFeatures = isOwner ? (item.privateFeatures || []) : [];
   return {
     id: item.id,
@@ -87,6 +97,9 @@ function toClientEntity(item, viewerId) {
     image: item.image || '',
     images: item.images || [],
     imageDescription: item.imageDescription || '',
+    attributesModel: item.attributesModel || 'local',
+    attributeSources: item.attributeSources || {},
+    attributeConfidence: item.attributeConfidence || {},
     /** 计算用：向量。缺了它视觉相似度会整体失效 */
     embeddings: item.embeddings || null,
     /** 原始属性（视图里的 attributes 是同一份，但这里保证不经过裁剪） */
@@ -148,7 +161,7 @@ async function publish(input, extras) {
     category: attributes.category,
     attributes,
     attributeSources: Object.assign({}, ai.sources, data.attributeSources || {}),
-    attributeConfidence: ai.confidence,
+    attributeConfidence: Object.assign({}, ai.confidence, data.attributeConfidence || {}),
     attributesModel: data.attributesModel || (aiSource ? (aiSource.model || 'deepseek') : 'local'),
     locationId: data.locationId,
     locationText: data.locationText,
@@ -204,7 +217,7 @@ async function runMatchForLost(lostItem, options) {
     if (r.score < 0.32) continue;
     const existed = !!existingIds[r.foundItem.id];
     const scored = {
-      id: 'match_' + lostItem.id + '_' + r.foundItem.id,
+      id: 'match_' + lostItem.id + '__' + r.foundItem.id,
       lostId: lostItem.id,
       foundId: r.foundItem.id,
       score: Number(r.score.toFixed(4)),
@@ -287,7 +300,7 @@ async function runMatchForFound(foundItem, options) {
     if (r.score < 0.32) continue;
     const existed = !!existingIds[r.lostItem.id];
     const scored = {
-      id: 'match_' + r.lostItem.id + '_' + foundItem.id,
+      id: 'match_' + r.lostItem.id + '__' + foundItem.id,
       lostId: r.lostItem.id,
       foundId: foundItem.id,
       score: Number(r.score.toFixed(4)),
@@ -453,7 +466,15 @@ async function candidatesForLost(lostId, options) {
   const opts = options || {};
   const lost = await store.getItem(lostId);
   if (!lost) return { views: [], results: [], candidates: 0 };
-  const founds = await store.itemsOf('found');
+  /**
+   * 已闭环的失物不再产出候选（物品找回了还看到「可能匹配」没有意义，
+   * 而且容易误操作）。拾物侧同样过滤已归还 / 已关闭的记录。
+   */
+  if (lost.status === 'recovered' || lost.status === 'closed') {
+    return { views: [], results: [], candidates: 0 };
+  }
+  const founds = (await store.itemsOf('found'))
+    .filter((f) => f.status !== 'returned' && f.status !== 'closed');
   const ranked = matcher.rankCandidates(lost, founds, { topK: opts.topK || 20 });
   const existing = await store.matchesOfLost(lostId);
   const map = {};
@@ -463,14 +484,18 @@ async function candidatesForLost(lostId, options) {
   for (let i = 0; i < ranked.results.length; i += 1) {
     const r = ranked.results[i];
     if (r.score < (opts.minScore || 0.3)) continue;
+    // 同 id 自匹配必须剔除（演示数据里存在 kind 写错、被放进 lost 集合的 found_* 记录）
+    if (r.foundItem.id === lostId) continue;
     const m = map[r.foundItem.id];
+    // 与服务端一致地遵守「已排除」状态：除非显式要求，否则不再返回该候选
+    if (!opts.includeRejected && m && (m.status === 'rejected' || m.userStatus === 'rejected')) continue;
     const merged = Object.assign({}, m || {
-      id: 'match_' + lostId + '_' + r.foundItem.id,
+      id: 'match_' + lostId + '__' + r.foundItem.id,
       status: 'new',
       userStatus: 'new',
       createdAt: Date.now()
     }, r, {
-      id: m ? m.id : 'match_' + lostId + '_' + r.foundItem.id,
+      id: m ? m.id : 'match_' + lostId + '__' + r.foundItem.id,
       status: m ? m.status : 'new',
       userStatus: m ? (m.userStatus || 'new') : 'new'
     });
@@ -484,7 +509,12 @@ async function candidatesForFound(foundId, options) {
   const opts = options || {};
   const found = await store.getItem(foundId);
   if (!found) return { views: [], results: [], candidates: 0 };
-  const losts = await store.itemsOf('lost');
+  // 已归还 / 已关闭的拾物不再产出候选（理由同 candidatesForLost）
+  if (found.status === 'returned' || found.status === 'closed') {
+    return { views: [], results: [], candidates: 0 };
+  }
+  const losts = (await store.itemsOf('lost'))
+    .filter((l) => l.status !== 'recovered' && l.status !== 'closed');
   const ranked = matcher.rankOwners(found, losts, { topK: opts.topK || 20 });
   const existing = await store.matchesOfFound(foundId);
   const map = {};
@@ -494,14 +524,17 @@ async function candidatesForFound(foundId, options) {
   for (let i = 0; i < ranked.results.length; i += 1) {
     const r = ranked.results[i];
     if (r.score < (opts.minScore || 0.3)) continue;
+    // 对称地剔除自匹配
+    if (r.lostItem.id === foundId) continue;
     const m = map[r.lostItem.id];
+    if (!opts.includeRejected && m && (m.status === 'rejected' || m.userStatus === 'rejected')) continue;
     const merged = Object.assign({}, m || {
-      id: 'match_' + r.lostItem.id + '_' + foundId,
+      id: 'match_' + r.lostItem.id + '__' + foundId,
       status: 'new',
       userStatus: 'new',
       createdAt: Date.now()
     }, r, {
-      id: m ? m.id : 'match_' + r.lostItem.id + '_' + foundId,
+      id: m ? m.id : 'match_' + r.lostItem.id + '__' + foundId,
       status: m ? m.status : 'new',
       userStatus: m ? (m.userStatus || 'new') : 'new'
     });
@@ -553,13 +586,13 @@ async function compareDetail(matchId, options) {
 
   const detail = matcher.scorePair(lost, found);
   const merged = Object.assign({}, match || {
-    id: 'match_' + lost.id + '_' + found.id,
+    id: 'match_' + lost.id + '__' + found.id,
     lostId: lost.id,
     foundId: found.id,
     status: 'new',
     userStatus: 'new',
     createdAt: Date.now()
-  }, detail, { id: match ? match.id : 'match_' + lost.id + '_' + found.id });
+  }, detail, { id: match ? match.id : 'match_' + lost.id + '__' + found.id });
 
   const view = await matchView(merged, opts);
   return Object.assign({
@@ -574,19 +607,154 @@ async function compareDetail(matchId, options) {
 
 /* ===================== 认领核验 ===================== */
 
-async function startClaim(matchId) {
-  const match = await store.getMatch(matchId);
+/**
+ * 管理权限名单（可以操作任何人的记录）。
+ *
+ * ⚠ 只放真正的管理员，**不要**把演示主账号 u_me 放进来：
+ *   u_me 是演示数据里大部分记录的所有者，一旦它拥有管理权限，
+ *   「只能改自己的记录」这条规则就会被静默绕过，安全性等于没有。
+ *   初始化类权限（system.* / seed.demo）另有名单，见 index.js 的 INIT_IDS。
+ */
+const ADMIN_IDS = ['u_admin'];
+
+function isAdmin(userId) {
+  return ADMIN_IDS.indexOf(userId) >= 0;
+}
+
+/** 进行中的认领状态：这些状态下不允许对同一条失物再开新单 */
+const ACTIVE_CLAIM_STATUS = ['answering', 'submitted', 'verified'];
+
+/**
+ * 解析候选的 matchId。
+ *
+ * ⚠ 真实缺陷：候选列表是**读时重算**的，大多数候选从来没有落过库，
+ *   ID 是按 `match_<lostId>_<foundId>` 约定现造的合成 id。
+ *   旧实现直接 `store.getMatch(matchId)`，拿不到就回「候选不存在」——
+ *   也就是说「从候选卡片直接点发起认领」在这条路径上是走不通的。
+ *
+ * ⚠ 还有一个坑：**物品 id 里本来就可能含下划线**
+ *   （演示数据如 `found_cup_01`，真实发布生成的如 `item_mv0wosyq_1rl`）。
+ *   用「按 `_` 切分猜」的方法去还原合成 id 是不可靠的。
+ *   因此 parseSyntheticMatchId 统一改成按 `__`（双下划线）分隔，
+ *   同时保留对旧格式的逐个下划线回溯，兼容历史数据。
+ */
+function parseSyntheticMatchId(matchId) {
+  const id = String(matchId || '');
+  const PREFIX = 'match_';
+  if (id.indexOf(PREFIX) !== 0) return null;
+  const body = id.slice(PREFIX.length);
+
+  const cuts = [];
+  const delim = body.indexOf('__');
+  if (delim > 0) cuts.push(delim);
+  // 兼容旧格式（单下划线拼接）：逐个下划线位置回溯
+  for (let i = 1; i < body.length - 1; i += 1) {
+    if (body[i] === '_' && cuts.indexOf(i) < 0) cuts.push(i);
+  }
+  return { body, cuts };
+}
+
+async function resolveMatch(matchId) {
+  const existed = await store.getMatch(matchId);
+  if (existed) return existed;
+
+  const parsed = parseSyntheticMatchId(matchId);
+  if (!parsed) return null;
+
+  for (let k = 0; k < parsed.cuts.length; k += 1) {
+    const i = parsed.cuts[k];
+    const lostId = parsed.body.slice(0, i);
+    const foundId = parsed.body.slice(i + 1).replace(/^_/, '');
+    if (!lostId || !foundId) continue;
+    const lost = await store.getItem(lostId);
+    const found = await store.getItem(foundId);
+    if (!lost || !found || lost.kind !== 'lost' || found.kind !== 'found') continue;
+
+    const rec = await store.upsertMatch({
+      id: matchId,
+      lostId,
+      foundId,
+      status: 'new',
+      userStatus: 'new',
+      createdAt: Date.now()
+    });
+    if (!rec) return null;
+
+    /**
+     * ⚠ upsertMatch 按 (lostId, foundId) 去重：
+     *   若这一对已有记录（旧版本用的 id 约定不同），它会**沿用原有记录的 id**
+     *   并把传入 id 丢掉。此时如果调用方继续用「传入的 matchId」去
+     *   updateMatch / claimByMatch，就会影响 0 行 / 查不到东西——
+     *   这正是「认领单存在但它的 matchId 指向一个不存在的 match」的来源。
+     *
+     *   这里把 id 归一到调用方使用的那套约定，保证
+     *     resolveMatch(x).id === x
+     *   同时把已经挂在旧 id 上的认领单一并迁移，避免历史认领单被孤立。
+     */
+    if (rec.id !== matchId) {
+      // 走显式的改名路径：updateMatch 会剥掉 id（主键保护），改不动
+      await store.renameMatchId(rec.id, matchId);
+      rec.id = matchId;
+    }
+    return rec;
+  }
+  return null;
+}
+
+/**
+ * 发起认领。
+ *
+ * 三道校验（都是之前缺的）：
+ *   1. 只有失物主人能为自己的失物发起认领——claimantId 取自 lost.userId，
+ *      不校验就等于允许任何人替别人发起；
+ *   2. 失物已经找回 / 关闭时不再接受新认领；
+ *   3. 同一条失物只允许存在一张「进行中」的认领单，避免一件物品挂多张单、
+ *      归还一张后其余仍停在 claimed，物品状态与 match 状态互相矛盾。
+ *
+ * @param {string} matchId
+ * @param {{userId?:string}} [options] 调用方身份；不传时跳过身份校验（内部/脚本调用）
+ */
+async function startClaim(matchId, options) {
+  const opts = options || {};
+  const match = await resolveMatch(matchId);
   if (!match) return { ok: false, message: '候选不存在' };
   const found = await store.getItem(match.foundId);
   const lost = await store.getItem(match.lostId);
   if (!found || !lost) return { ok: false, message: '记录不存在' };
   if (match.status === 'rejected') return { ok: false, message: '该候选已被排除' };
 
-  let claim = await store.claimByMatch(matchId);
+  const userId = opts.userId || '';
+  if (userId && !isAdmin(userId) && lost.userId !== userId) {
+    return { ok: false, message: '只能为自己的失物发起认领' };
+  }
+  if (lost.status === 'recovered' || lost.status === 'closed') {
+    return { ok: false, message: '该失物已找回或已关闭，不再接受新的认领' };
+  }
+
+  /**
+   * 用**归一后的** match.id 作为认领单的 key：
+   *   resolveMatch 保证返回记录的 id 就是请求里用的那个，但显式写成 match.id
+   *   可以避免以后有人改 resolveMatch 时这里悄悄失配。
+   */
+  const keyMatchId = match.id || matchId;
+  const existing = await store.claimByMatch(keyMatchId);
+  if (!existing) {
+    const siblings = await store.claimsOfLost(match.lostId);
+    const active = siblings.filter((c) => ACTIVE_CLAIM_STATUS.indexOf(c.status) >= 0);
+    if (active.length) {
+      return {
+        ok: false,
+        message: '该失物已有一张进行中的认领单（' + active[0].id + '），请先完成或结束它',
+        activeClaimId: active[0].id
+      };
+    }
+  }
+
+  let claim = existing;
   if (!claim) {
     claim = {
-      id: 'claim_' + matchId,
-      matchId,
+      id: 'claim_' + keyMatchId,
+      matchId: keyMatchId,
       lostId: match.lostId,
       foundId: match.foundId,
       claimantId: lost.userId,
@@ -600,15 +768,32 @@ async function startClaim(matchId) {
     };
     await store.insertClaim(claim);
   }
-  await store.updateMatch(matchId, { status: 'claimed', userStatus: 'claimed' });
+  await store.updateMatch(keyMatchId, { status: 'claimed', userStatus: 'claimed' });
   await store.updateItem(lost.id, { status: 'verifying' });
   if (found.status === 'available') await store.updateItem(found.id, { status: 'reserved' });
   return { ok: true, claim, claimView: await claimView(claim) };
 }
 
-async function submitClaim(claimId, answers) {
+/**
+ * 提交核验回答：只有认领者（失主）本人可以作答。
+ */
+async function submitClaim(claimId, answers, options) {
+  const opts = options || {};
   const claim = await store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+  const userId = opts.userId || '';
+  if (userId && !isAdmin(userId) && claim.claimantId !== userId) {
+    return { ok: false, message: '只有发起认领的失主可以提交核验回答' };
+  }
+  /**
+   * 状态守卫：startClaim 对同一候选是幂等的（已存在就返回旧认领单），
+   * 因此可能拿到已归还 / 已拒绝的历史单。不校验就会把已闭环的认领单
+   * 重新激活回 submitted。
+   */
+  if (claim.status !== 'answering') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，不能重复提交核验回答' };
+  }
   const result = ops.verifyAll(claim.questions, answers);
   await store.updateClaim(claimId, {
     answers: result.list,
@@ -631,9 +816,31 @@ async function submitClaim(claimId, answers) {
   return { ok: true, claim: updated, claimView: await claimView(updated) };
 }
 
-async function confirmClaim(claimId, action, remark) {
+/**
+ * 拾物者确认 / 拒绝。
+ *
+ * 两道校验（都是之前缺的）：
+ *   1. 只有拾物者本人能确认——否则任何人都能替物主「通过」一次认领；
+ *   2. 只有「待拾物者确认」状态可以确认——否则已通过的认领单会被再改成
+ *      「未通过」（重复写 feedback、把已归还的流程反复改写）。
+ */
+async function confirmClaim(claimId, action, remark, options) {
+  const opts = options || {};
   const claim = await store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+
+  const userId = opts.userId || '';
+  if (userId && !isAdmin(userId) && claim.keeperId !== userId) {
+    return { ok: false, message: '只有拾物者本人可以确认或拒绝该认领' };
+  }
+  if (claim.status !== 'submitted') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，不能重复确认' };
+  }
+  if (action !== 'pass' && action !== 'reject') {
+    return { ok: false, message: 'action 只能是 pass 或 reject' };
+  }
+
   const isPass = action === 'pass';
   const lost = await store.getItem(claim.lostId);
   const found = await store.getItem(claim.foundId);
@@ -673,9 +880,27 @@ async function confirmClaim(claimId, action, remark) {
   return { ok: true, claim: updated, claimView: await claimView(updated) };
 }
 
-async function completeReturn(claimId) {
+/**
+ * 完成归还。
+ *
+ * 校验：只有本次认领的双方可以确认归还（线下交接完成后的收尾动作），
+ * 且只有「核验已通过（待交接）」状态可以完成——否则能对一张刚提交、
+ * 尚未确认的认领单直接置为已归还，跳过拾物者确认这一环。
+ */
+async function completeReturn(claimId, options) {
+  const opts = options || {};
   const claim = await store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+
+  const userId = opts.userId || '';
+  if (userId && !isAdmin(userId) && claim.claimantId !== userId && claim.keeperId !== userId) {
+    return { ok: false, message: '只有本次认领的双方可以确认归还' };
+  }
+  if (claim.status !== 'verified') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，需先完成核验确认' };
+  }
+
   await store.updateClaim(claimId, { status: 'returned', returnedAt: Date.now() });
   await store.updateMatch(claim.matchId, { status: 'returned' });
   const lost = await store.getItem(claim.lostId);
@@ -706,13 +931,44 @@ async function completeReturn(claimId) {
   return { ok: true, claim: updated, claimView: await claimView(updated) };
 }
 
-async function rejectMatch(matchId, reason) {
-  const match = await store.getMatch(matchId);
-  if (!match) return { ok: false };
-  await store.updateMatch(matchId, { status: 'rejected', userStatus: 'rejected', rejectReason: reason || '' });
+/**
+ * 排除候选（弱负样本）。
+ *
+ * 与客户端 utils/service.js 同源的问题：候选列表是读时重算的，
+ * 大多数候选从未落库，直接 updateMatch 会静默失败（返回 ok:false 但页面
+ * 照样提示成功）。这里按候选列表的命名约定补一条记录，保证排除真的生效。
+ */
+async function rejectMatch(matchId, reason, context) {
+  let match = await store.getMatch(matchId);
+  if (!match) {
+    const ctx = context || {};
+    if (!ctx.lostId || !ctx.foundId) {
+      return { ok: false, message: '候选尚未落库，缺少记录信息，无法排除' };
+    }
+    /**
+     * ⚠ upsertMatch 按 (lostId, foundId) 去重：
+     *   如果这一对记录其实已经存在（只是调用方拿到的 matchId 与库里的 id 不一致），
+     *   它会沿用**原有记录的 id**。因此后续更新必须用 upsert 的返回值里的 id，
+     *   否则 updateMatch 会按一个库里不存在的 id 更新，静默影响 0 行 —— 这正是
+     *   「点了排除，界面没有任何变化」在云端模式的成因。
+     */
+    match = await store.upsertMatch({
+      id: matchId,
+      lostId: ctx.lostId,
+      foundId: ctx.foundId,
+      score: ctx.score || 0,
+      threshold: ctx.threshold || 0,
+      passed: !!ctx.passed,
+      createdAt: Date.now(),
+      userStatus: 'new'
+    });
+    if (!match) return { ok: false, message: '候选记录创建失败' };
+  }
+  const targetId = match.id || matchId;
+  await store.updateMatch(targetId, { status: 'rejected', userStatus: 'rejected', rejectReason: reason || '' });
   await store.insertFeedback({
-    id: 'fb_reject_' + matchId + '_' + Date.now(),
-    matchId,
+    id: 'fb_reject_' + targetId + '_' + Date.now(),
+    matchId: targetId,
     lostId: match.lostId,
     foundId: match.foundId,
     userAction: 'rejected',
@@ -720,6 +976,33 @@ async function rejectMatch(matchId, reason) {
     reason: reason || '',
     timestamp: Date.now()
   });
+  return { ok: true, matchId: targetId };
+}
+
+/** 撤销排除：把候选放回列表（status 与 userStatus 必须一起复位） */
+async function restoreMatch(matchId, context) {
+  const match = await store.getMatch(matchId);
+  if (!match) {
+    const ctx = context || {};
+    if (!ctx.lostId || !ctx.foundId) return { ok: false, message: '候选不存在' };
+    // 与 rejectMatch 对称：同样要用 upsert 返回的记录 id 去更新
+    const created = await store.upsertMatch({
+      id: matchId,
+      lostId: ctx.lostId,
+      foundId: ctx.foundId,
+      status: 'new',
+      userStatus: 'new',
+      createdAt: Date.now()
+    });
+    if (created && created.id && created.id !== matchId) {
+      await store.updateMatch(created.id, { status: 'new', userStatus: 'new' });
+    }
+    return { ok: true };
+  }
+  if (match.status !== 'rejected' && match.userStatus !== 'rejected') {
+    return { ok: false, message: '该候选没有被排除' };
+  }
+  await store.updateMatch(matchId, { status: 'new', userStatus: 'new', rejectReason: '' });
   return { ok: true };
 }
 
@@ -750,7 +1033,104 @@ async function claimView(claim) {
     createdText: timeUtil.fromNow(claim.createdAt),
     canAnswer: claim.status === 'answering',
     canConfirm: claim.status === 'submitted',
-    privateFeatures: (found && found.privateFeatures) || []
+    privateFeatures: (found && found.privateFeatures) || [],
+    /* 临时会话摘要：列表页显示「N 条消息」，详情页再取完整会话 */
+    messageCount: (claim.messages || []).length,
+    sessionState: chat.sessionState(claim.status).key
+  };
+}
+
+/* ===================== 核验期临时会话 =====================
+ *
+ * 与客户端 utils/service.js 同源，规则写在 core/chat.js：
+ *   · answering 阶段不开放（防止认领者用会话套取隐藏特征）；
+ *   · 只有 claimantId / keeperId 能读写；
+ *   · 归还 / 拒绝后转只读；
+ *   · 手机号、社交账号在写入前脱敏。
+ */
+
+async function roleOf(claim, userId) {
+  if (!claim) return '';
+  if (claim.claimantId === userId) return 'claimant';
+  if (claim.keeperId === userId) return 'keeper';
+  return '';
+}
+
+async function claimSessionView(claimId, options) {
+  const opts = options || {};
+  const claim = await store.getClaim(claimId);
+  if (!claim) return null;
+  const userId = opts.userId || '';
+  if (!(await roleOf(claim, userId))) {
+    return {
+      state: 'closed',
+      stateLabel: '无权访问',
+      stateDesc: '只有本次认领的失主与拾物者可以查看会话',
+      canSend: false,
+      messages: [],
+      hasMessages: false,
+      count: 0
+    };
+  }
+  /*
+   * chat.sessionView 是纯函数（同步），昵称解析必须是同步的，
+   * 所以先把用户表一次性读进内存再查表。
+   * 用户量在这个场景下很小（演示环境是固定的几个账号），不构成性能问题。
+   */
+  const roster = {};
+  const users = await store.users();
+  users.forEach((u) => { roster[u.id] = u.nickName || '同学'; });
+  return chat.sessionView(claim, {
+    userId,
+    nameOf: (id) => roster[id] || '同学'
+  });
+}
+
+async function postClaimMessage(claimId, input) {
+  const data = input || {};
+  const userId = data.userId || '';
+  const claim = await store.getClaim(claimId);
+  if (!claim) return { ok: false, message: '认领单不存在' };
+
+  const role = await roleOf(claim, userId);
+  if (!role) return { ok: false, message: '只有本次认领的双方可以发送消息' };
+  if (!chat.canSend(claim.status)) {
+    const st = chat.sessionState(claim.status);
+    return {
+      ok: false,
+      message: st.key === 'closed' ? '提交核验回答后才能开启会话' : '本次认领已结束，会话不再接受新消息'
+    };
+  }
+
+  const created = chat.createMessage({
+    claimId,
+    senderId: userId,
+    senderRole: role,
+    text: data.text,
+    uid: store.uid
+  });
+  if (!created.ok) return created;
+
+  const messages = chat.appendMessage(claim.messages, created.value);
+  await store.updateClaim(claimId, { messages });
+
+  // 通知对方，避免只能靠反复刷新页面发现新消息
+  const counterpartId = role === 'keeper' ? claim.claimantId : claim.keeperId;
+  await store.insertNotification({
+    id: 'ntf_msg_' + created.value.id,
+    userId: counterpartId,
+    type: 'claim_message',
+    matchId: claim.matchId,
+    title: '认领会话有新消息',
+    body: '对方在核验会话里留言：' + created.value.text.slice(0, 40),
+    read: false,
+    createdAt: Date.now()
+  });
+
+  return {
+    ok: true,
+    message: created.value,
+    session: await claimSessionView(claimId, { userId })
   };
 }
 
@@ -1058,7 +1438,7 @@ async function seedDemo(options) {
   await store.insertItem(historyFound);
   const lostItem = losts.find((x) => x.id === history.lostId);
   if (lostItem) {
-    const matchId = 'match_' + lostItem.id + '_' + historyFound.id;
+    const matchId = 'match_' + lostItem.id + '__' + historyFound.id;
     await store.upsertMatch({
       id: matchId,
       lostId: lostItem.id,
@@ -1161,7 +1541,10 @@ module.exports = {
   confirmClaim,
   completeReturn,
   rejectMatch,
+  restoreMatch,
   claimView,
+  claimSessionView,
+  postClaimMessage,
   stats,
   categoryDistribution,
   heatmap,

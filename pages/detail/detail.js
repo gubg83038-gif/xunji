@@ -86,10 +86,36 @@ Page({
 
   onMatchReject(e) {
     const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
     wx.showLoading({ title: '处理中', mask: true });
-    service.rejectMatchAsync(matchId, '详情页排除').then(() => {
+    service.rejectMatchAsync(matchId, '详情页排除', {
+      lostId: m.lostId,
+      foundId: m.foundId,
+      score: m.score,
+      threshold: m.threshold,
+      passed: m.passed
+    }).then((r) => {
       wx.hideLoading();
-      wx.showToast({ title: '已排除', icon: 'success' });
+      if (!r || !r.ok) {
+        wx.showToast({ title: (r && r.message) || '排除失败', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: '已排除，可在「已排除」里撤销', icon: 'none' });
+      this.load();
+    });
+  },
+
+  onMatchRestore(e) {
+    const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
+    wx.showLoading({ title: '处理中', mask: true });
+    service.restoreMatchAsync(matchId, { lostId: m.lostId, foundId: m.foundId }).then((r) => {
+      wx.hideLoading();
+      if (!r || !r.ok) {
+        wx.showToast({ title: (r && r.message) || '撤销失败', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: '已恢复该候选', icon: 'success' });
       this.load();
     });
   },

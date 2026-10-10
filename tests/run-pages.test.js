@@ -86,6 +86,13 @@ global.__app = {
   boot: () => Promise.resolve()
 };
 
+/**
+ * 把身份注入点接到 __app，与 app.js 的 onLaunch 行为一致。
+ * 服务层的写操作（认领/核验/归还）会带当前身份做授权校验，
+ * 不注册的话 identity 只能回落到 u_me，换身份的用例会误判。
+ */
+require(path.join(ROOT, 'core/identity.js')).register(() => global.__app.globalData.userId);
+
 /* ===================== 测试框架 ===================== */
 
 let passed = 0;
@@ -193,7 +200,8 @@ const PAGES = [
   { rel: 'pages/notify/notify.js', name: '消息', query: {} },
   { rel: 'pages/mine/mine.js', name: '我的', query: {} },
   { rel: 'pages/claim/claim.js', name: '认领核验', query: { claimId: '__none__' } },
-  { rel: 'pages/admin/admin.js', name: '管理看板', query: {} }
+  { rel: 'pages/admin/admin.js', name: '管理看板', query: {} },
+  { rel: 'pages/search/search.js', name: '文字图片找物', query: {} }
 ];
 
 async function main() {
@@ -407,7 +415,7 @@ async function main() {
     calls.navigate.length = 0;
     modalBehavior.confirm = true;
 
-    inst.onSubmit();
+    await inst.onSubmit();
     modalBehavior.confirm = false;
 
     // 弹窗替身会自动 confirm，因此跳转应立即发生
@@ -424,6 +432,316 @@ async function main() {
       throw new Error('应把 itemId 暂存到 globalData.pendingParams，实际 ' +
         JSON.stringify(pending));
     }
+  });
+
+  /* ===================== 7. 本轮反馈的 5 个问题的页面级回归 ===================== */
+
+  group('7. 用户反馈问题回归（发布页 / 核验页 / 匹配页）');
+
+  await test('发布页：自定义时间地点的输入框与选择器是不同的区块（避免视觉重叠）', async () => {
+    const fsx = require('fs');
+    const wxml = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.wxml'), 'utf8');
+    const wxss = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.wxss'), 'utf8');
+
+    // 手动输入必须包在独立的 subfield 区块里（有分隔线与说明文字）
+    const subfields = (wxml.match(/class="subfield"/g) || []).length;
+    if (subfields < 2) {
+      throw new Error('地点与时间的自定义输入都应包在 .subfield 区块内，实际 ' + subfields + ' 处');
+    }
+    if (!/\.subfield\s*\{[^}]*border-top/.test(wxss)) {
+      throw new Error('.subfield 应有分隔线（border-top），否则两块会看起来粘在一起');
+    }
+    if (wxml.indexOf('location-input') >= 0) {
+      throw new Error('不应再使用旧的 location-input（那个类只有 margin-top，正是重叠的成因）');
+    }
+  });
+
+  await test('发布页：重新提取只有一个入口，AI 识别使用页面内状态遮罩', async () => {
+    const fsx = require('fs');
+    const wxml = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.wxml'), 'utf8');
+    const js = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.js'), 'utf8');
+
+    const rerunButtons = (wxml.match(/bindtap="onRerunExtract"/g) || []).length;
+    if (rerunButtons !== 1) {
+      throw new Error('发布页应只保留一个“重新提取”按钮，实际 ' + rerunButtons + ' 个');
+    }
+    if (wxml.indexOf('class="ai-mask"') < 0 || wxml.indexOf('ai-recognizing.mp4') < 0) {
+      throw new Error('发布页缺少 AI 自定义识别遮罩或动画素材');
+    }
+    if (js.indexOf("aiState: 'idle'") < 0 || js.indexOf('beginAiProgress') < 0 || js.indexOf('finishAiProgress') < 0) {
+      throw new Error('发布页未定义完整的 AI 状态流程');
+    }
+    if (js.indexOf("wx.showLoading({ title: 'AI 识别中'") >= 0) {
+      throw new Error('AI 识别不应继续使用系统级 wx.showLoading');
+    }
+
+    const inst = instantiate(loadPage('pages/publish/publish.js'));
+    if (inst.data.aiState !== 'idle') throw new Error('AI 初始状态应为 idle');
+    inst.beginAiProgress();
+    if (inst.data.aiState !== 'preparing' || !inst.data.extracting) {
+      throw new Error('AI 开始时应进入 preparing 状态');
+    }
+    inst.onAiVideoError();
+    if (!inst.data.aiVideoFailed) throw new Error('动画失败后应切换静态降级素材');
+    inst.finishAiProgress('fallback', '正在使用本地规则');
+    if (inst.data.aiState !== 'fallback') throw new Error('AI 降级状态未生效');
+    inst.onUnload();
+  });
+
+  await test('发布页：自定义隐藏特征可以删除并恢复（用户反馈「加错了没法撤回」）', async () => {
+    const inst = instantiate(loadPage('pages/publish/publish.js'));
+    await runLifecycle(inst, { type: 'found' });
+    inst.data.attributes = { category: 'cup' };
+
+    // 勾一项类别推荐特征（清空时要靠它验证「删除后可恢复」）
+    if (!inst.data.privateSuggestions.length) {
+      throw new Error('前置条件：杯子类别应有推荐隐藏特征');
+    }
+    inst.onTogglePrivate({ currentTarget: { dataset: { value: inst.data.privateSuggestions[0] } } });
+    if (inst.data.privateSelected.length !== 1) {
+      throw new Error('勾选推荐特征应生效');
+    }
+
+    // 添加两条自定义特征
+    inst.data.privateCustom = '杯底有一道长划痕';
+    inst.onAddPrivateCustom();
+    inst.data.privateCustom = '杯盖内侧有贴纸';
+    inst.onAddPrivateCustom();
+    if (inst.data.privateSelected.length !== 3) {
+      throw new Error('应有 1 推荐 + 2 自定义，实际 ' + JSON.stringify(inst.data.privateSelected));
+    }
+    if (!/^自定义：/.test(inst.data.privateSelected[1])) {
+      throw new Error('自定义特征应带统一前缀，实际 ' + inst.data.privateSelected[1]);
+    }
+
+    // 删除第一条自定义
+    inst.onRemovePrivate({ currentTarget: { dataset: { index: 1 } } });
+    if (inst.data.privateSelected.length !== 2 ||
+        inst.data.privateSelected.some((x) => x.indexOf('长划痕') >= 0)) {
+      throw new Error('删除后不应还有那条，实际 ' + JSON.stringify(inst.data.privateSelected));
+    }
+
+    // 重新提取属性时，自定义特征不能被静默丢掉（旧实现前缀判断不匹配会丢）
+    inst.data.images = [];
+    await inst.recompute(false);
+    if (!inst.data.privateSelected.some((x) => x.indexOf('贴纸') >= 0)) {
+      throw new Error('重新提取后自定义特征被丢弃了：' + JSON.stringify(inst.data.privateSelected));
+    }
+
+    // 全部清空：推荐项进入「可恢复」计数，自定义项直接丢弃
+    modalBehavior.confirm = true;
+    inst.onClearPrivate();
+    modalBehavior.confirm = false;
+    if (inst.data.privateSelected.length !== 0) {
+      throw new Error('清空后不应还有已选特征');
+    }
+    if (inst.data.privateDeletedCount < 1) {
+      throw new Error('清空推荐项后应记录可恢复的删除数，实际 ' + inst.data.privateDeletedCount);
+    }
+
+    // 恢复：推荐项应重新出现在候选里
+    const suggested = inst.data.privateSuggestions;
+    inst.onRestorePrivate();
+    if (inst.data.privateDeletedCount !== 0) {
+      throw new Error('恢复后删除计数应清零');
+    }
+    if (inst.data.privateSuggestions.length < suggested.length) {
+      throw new Error('恢复后推荐特征应回到候选列表');
+    }
+  });
+
+  await test('核验页：快捷选项互斥、可取消，选中后有据实提示', async () => {
+    const appService = require(path.join(ROOT, 'utils/service.js'));
+    const st = require(path.join(ROOT, 'utils/store.js'));
+    st.init();
+
+    // 自己去开一张处于「待回答」状态的新认领单（认领只能由失主本人发起）
+    let claim = null;
+    st.itemsOf('lost').some((l) => {
+      const views = appService.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+      const fresh = views.find((v) => !st.byMatch(v.id));
+      if (!fresh) return false;
+      const started = appService.startClaim(fresh.id, { userId: l.userId });
+      if (started.ok) { claim = started.claim; return true; }
+      return false;
+    });
+    if (!claim) throw new Error('前置条件：应能开出一张待回答的认领单');
+
+    const config = loadPage('pages/claim/claim.js');
+    const inst = instantiate(config);
+    await runLifecycle(inst, { claimId: claim.id });
+
+    if (!inst.data.answers.length) throw new Error('应有核验问题');
+    const pick = (i, v) => inst.onPickOption({ currentTarget: { dataset: { index: i, value: v } } });
+
+    pick(0, '有');
+    if (inst.data.answers[0].value !== '有' || inst.data.answers[0].choice !== '有') {
+      throw new Error('Q1 选「有」应生效，实际 ' + JSON.stringify(inst.data.answers[0]));
+    }
+    // 同一题换一个选项必须能改（问题 3 的核心：不能只认第一个）
+    pick(0, '没有');
+    if (inst.data.answers[0].value !== '没有') {
+      throw new Error('Q1 应能从「有」改成「没有」，实际 ' + inst.data.answers[0].value);
+    }
+    pick(1, '不确定');
+    if (inst.data.answers[1].value !== '不确定' || inst.data.answers[0].value !== '没有') {
+      throw new Error('各题的选项必须互相独立，实际 ' + JSON.stringify(inst.data.answers.map((a) => a.value)));
+    }
+    if (inst.data.answers[1].detailed !== false) {
+      throw new Error('只点选项不算「补充了细节」，应给出低分提示');
+    }
+    // 再点同一项 = 取消
+    pick(1, '不确定');
+    if (inst.data.answers[1].value !== '') {
+      throw new Error('再点同一项应取消选择，实际 ' + inst.data.answers[1].value);
+    }
+    // 补一句细节后 detailed 应为 true
+    inst.onAnswerInput({ currentTarget: { dataset: { index: 0 } }, detail: { value: '杯底有一道三厘米划痕' } });
+    if (inst.data.answers[0].detailed !== true) {
+      throw new Error('具体描述应被认定为已补充细节');
+    }
+  });
+
+  await test('匹配页：已排除候选从主列表移除，并出现在「已排除」筛选里', async () => {
+    const appService = require(path.join(ROOT, 'utils/service.js'));
+    const st = require(path.join(ROOT, 'utils/store.js'));
+    st.init();
+
+    const lost = st.itemsOf('lost').filter((l) => {
+      const v = appService.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+      return v.length >= 2;
+    })[0];
+    if (!lost) throw new Error('前置条件：应有候选数 ≥2 的失物');
+
+    const before = appService.candidatesForLost(lost.id, { topK: 20, minScore: 0.3 }).views;
+    const target = before[0];
+    appService.rejectMatch(target.id, '页面回归测试', {
+      lostId: lost.id, foundId: target.foundId, score: target.score, passed: target.passed
+    });
+
+    const config = loadPage('pages/matches/matches.js');
+    const inst = instantiate(config);
+    global.__app.globalData.pendingParams = null;
+    await runLifecycle(inst, { itemId: lost.id });
+
+    if (inst.data.matches.some((m) => m.id === target.id)) {
+      throw new Error('已排除的候选不应还在主列表里（这正是「界面没有任何变化」的原因）');
+    }
+    if (inst.data.excludedCount < 1) {
+      throw new Error('应统计出已排除数量并在界面上提示，实际 ' + inst.data.excludedCount);
+    }
+    if (!inst.data.excluded.some((m) => m.id === target.id)) {
+      throw new Error('已排除列表里应能找到它');
+    }
+
+    // 切到「已排除」页签应能看到，并能撤销
+    inst.onShowExcluded();
+    if (!inst.data.matches.some((m) => m.id === target.id)) {
+      throw new Error('「已排除」筛选下应显示该候选');
+    }
+    const excludedCard = inst.data.matches.find((m) => m.id === target.id);
+    if (excludedCard.statusLabel !== '已排除') {
+      throw new Error('卡片应带「已排除」标记，实际 ' + excludedCard.statusLabel);
+    }
+
+    appService.restoreMatch(target.id, { lostId: lost.id, foundId: target.foundId });
+    inst.refresh();
+    if (!inst.data.matches.some((m) => m.id === target.id) && inst.data.filterKey === 'rejected') {
+      // 撤销后仍停在「已排除」页签，此时它应已不在列表里
+    }
+    inst.setData({ filterKey: 'all' });
+    inst.refresh();
+    if (!inst.data.matches.some((m) => m.id === target.id)) {
+      throw new Error('撤销后候选应回到主列表');
+    }
+  });
+
+  await test('核验页：提交回答后开启临时会话，能发消息并渲染', async () => {
+    const appService = require(path.join(ROOT, 'utils/service.js'));
+    const st = require(path.join(ROOT, 'utils/store.js'));
+    const identity = require(path.join(ROOT, 'core/identity.js'));
+    st.init();
+
+    // 找一条「状态活跃 + 没有进行中认领单」的失物的新候选
+    // （新增了两条守卫：一物一单、已找回/关闭不受理，测试必须先满足前置条件）
+    const ACTIVE = ['answering', 'submitted', 'verified'];
+    // 先把演示数据恢复到干净状态，避免被前面用例消耗掉候选
+    st.reset(() => {});
+    require(path.join(ROOT, 'mock/seed.js')).ensureSeed();
+    let target = null;
+    let owner = null;
+    st.itemsOf('lost').some((l) => {
+      if (l.status === 'recovered' || l.status === 'closed') return false;
+      if (st.claimsOfLost(l.id).some((c) => ACTIVE.indexOf(c.status) >= 0)) return false;
+      const views = appService.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+      // 双方必须是不同的人，否则 claimantId === keeperId，会话视图没有「对方」
+      const fresh = views.find((v) => !st.byMatch(v.id) && v.found.userId !== l.userId);
+      if (fresh) { target = fresh; owner = l; return true; }
+      return false;
+    });
+    if (!target) throw new Error('前置条件：应有尚未发起认领的候选');
+
+    /**
+     * 以失主身份操作：认领、提交核验都要求调用方就是失主本人
+     * （页面读 app.globalData.userId，所以这里切全局身份，而不是改 payload）。
+     */
+    global.__app.globalData.userId = owner.userId;
+    const started = appService.startClaim(target.id);
+    if (!started.ok) throw new Error('发起认领失败：' + started.message);
+    const claimId = started.claim.id;
+
+    const config = loadPage('pages/claim/claim.js');
+    const inst = instantiate(config);
+    await runLifecycle(inst, { claimId });
+    if (inst.data.myRole !== 'claimant') {
+      throw new Error('失主本人进来应是 claimant，实际 ' + inst.data.myRole);
+    }
+
+    // answering 阶段不该暴露会话
+    if (inst.data.session && inst.data.session.state !== 'closed') {
+      throw new Error('未提交核验前不应开启会话');
+    }
+    // 提交核验
+    inst.data.answers = inst.data.answers.map((a) => Object.assign({}, a, {
+      value: '杯底有一道大约三厘米的纵向划痕'
+    }));
+    modalBehavior.confirm = false;
+    await inst.onSubmit();
+
+    const after = instantiate(loadPage('pages/claim/claim.js'));
+    await runLifecycle(after, { claimId });
+    if (!after.data.session || after.data.session.state !== 'open') {
+      throw new Error('提交核验后会话应开启，实际 ' + JSON.stringify(after.data.session && after.data.session.state));
+    }
+    if (!after.data.session.canSend) throw new Error('提交核验后应允许发送消息');
+    if (after.data.session.counterpartLabel !== '拾物者' && after.data.session.counterpartLabel !== '失主') {
+      throw new Error('应标明对方身份，实际 ' + after.data.session.counterpartLabel);
+    }
+
+    after.data.messageDraft = '明天中午12:30 图书馆一楼服务台';
+    await after.onSendMessage();
+    if (!after.data.session.hasMessages) {
+      throw new Error('发送后应能看到消息');
+    }
+    const last = after.data.session.messages[after.data.session.messages.length - 1];
+    if (!last.mine) throw new Error('自己发的消息应标记 mine');
+    if (last.text.indexOf('12:30') < 0) throw new Error('消息内容应被保留');
+    if (after.data.messageDraft !== '' && after.data.messageDraft !== undefined && after.data.scrollTarget === '') {
+      throw new Error('发送后应把滚动定位到最新消息');
+    }
+
+    // 换一个与本次认领无关的身份进来：不该看到核验问答，也不该能操作
+    global.__app.globalData.userId = 'u_admin' === owner.userId ? 'u_chen' : 'u_admin';
+    const outsider = instantiate(loadPage('pages/claim/claim.js'));
+    await runLifecycle(outsider, { claimId });
+    if (outsider.data.myRole !== 'none') {
+      throw new Error('无关身份应被判为 none，实际 ' + outsider.data.myRole);
+    }
+    if (outsider.data.session && outsider.data.session.state !== 'closed') {
+      throw new Error('无关身份不应看到会话');
+    }
+
+    global.__app.globalData.userId = 'u_me';
   });
 
   /* ===================== 输出 ===================== */

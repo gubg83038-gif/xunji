@@ -405,3 +405,8 @@
   line-height: 1.6;
   text-align: center;
 }
+.quick-search { display: flex; align-items: center; padding: 24rpx; margin: 0 0 24rpx; background: rgba(255,255,255,.92); border-radius: 28rpx; }
+.quick-search image { width: 66rpx; height: 66rpx; margin-right: 20rpx; }
+.quick-search__title { color: #355d9d; font-size: 30rpx; font-weight: 600; }
+.quick-search__sub { color: #7b8a9f; font-size: 23rpx; margin-top: 6rpx; }
+.quick-search__arrow { margin-left: auto; font-size: 42rpx; color: #608ed1; }

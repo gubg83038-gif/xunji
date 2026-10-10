@@ -1,6 +1,7 @@
 const store = require('./utils/store');
 const service = require('./utils/service');
 const config = require('./core/config');
+const identity = require('./core/identity');
 
 App({
   globalData: {
@@ -19,13 +20,19 @@ App({
   },
 
   onLaunch() {
+    /**
+     * 把身份的读取权交给身份模块。
+     * utils/api.js 每次云调用都要带 userId，而它拿不到 getApp()：
+     * 这里注册一个读取器，切用户后它读到的也是最新值。
+     */
+    identity.register(() => this.globalData.userId);
     this.boot();
   },
 
   onShow() {
     // 从后台回到前台时补一次同步（云端模式下数据可能已被其他设备修改）
     if (this.globalData.ready && this.globalData.mode === 'cloud') {
-      service.syncFromCloud();
+      service.syncFromCloud({ force: false });
     }
   },
 
@@ -59,8 +66,8 @@ App({
   },
 
   /** 供页面在 onShow 里调用，保持数据新鲜 */
-  refresh() {
-    if (this.globalData.mode === 'cloud') return service.syncFromCloud();
+  refresh(options) {
+    if (this.globalData.mode === 'cloud') return service.syncFromCloud(Object.assign({ force: false }, options));
     return Promise.resolve(false);
   }
 });

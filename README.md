@@ -170,6 +170,49 @@ S = α·S_image + β·S_attr + γ·S_text + δ·S_geo + ε·S_time
                                       (Key 存环境变量)
 ```
 
+#### 身份与权限：做到了什么，没做到什么
+
+**先说清楚：本项目没有真正的用户体系，所谓的「当前用户」是客户端声明的演示身份。**
+
+```
+小程序端  app.globalData.userId
+          └─ core/identity.js（唯一事实来源）
+             └─ utils/api.js 每次云调用放入 event.demoUserId
+                └─ 云函数 ctx.userId（服务端所有权/权限校验的唯一依据）
+```
+
+已经落实的**授权规则**（服务端强制，客户端绕不过）：
+
+| 规则 | 作用范围 |
+| --- | --- |
+| 只有记录所有者能修改 / 删除它 | `item.update`、`item.remove` |
+| 隐藏核验特征只回传给物主本人 | `item.list`（隐私裁剪只看 `ctx.userId`，与展示用 persona 分离） |
+| 只有认领双方能读认领详情 | `claim.get` |
+| 只有失主本人能发起认领、只有认领者能作答 | `claim.start`、`claim.submit` |
+| 只有拾物者本人能确认 / 拒绝，且不能重复确认 | `claim.confirm` |
+| 未通过核验不能直接归还；只有双方能完成归还 | `claim.return` |
+| 一条失物只能有一张进行中的认领单 | `claim.start` |
+| 核验会话只对双方开放，联系方式自动脱敏 | `claim.message` |
+| 初始化 / 重置类动作仅限管理员 | `system.*`、`seed.demo` |
+
+两条名单，**故意分开**（混在一起会出安全事故，本项目已经踩过）：
+
+- `ADMIN_IDS`（管理权限，默认 `u_admin`）：能操作任何人的记录。
+  **不要把 `u_me` 放进来**——它是演示数据里大部分记录的所有者，一旦拥有管理权限，
+  「只能改自己的记录」就被静默绕过了。
+- `INIT_IDS`（初始化权限，默认 `u_admin`、`u_me`）：能跑 `system.*` 与 `seed.demo`。
+  放 `u_me` 是因为 README 的 Console 一键初始化脚本不带 userId。
+  可用环境变量 `XJ_ADMIN_IDS` / `XJ_INIT_IDS` 覆盖。
+
+**没做的**（需要真实用户体系才能做，属于已知限制）：
+
+- 客户端可以声明自己是任何人（`event.demoUserId`）。演示环境这是必需的——
+  不切身份就没法在一台设备上把「失主」和「拾物者」两侧都演示一遍。
+  真实项目应改为 `cloud.getWXContext().OPENID` 关联用户表，**客户端不再传身份**。
+- 没有登录态、没有 token 签发与有效期、没有操作审计日志。
+- `claim.mine` 的 persona 由客户端指定，因此读的是「声明的那个人」的认领列表
+  （不含核验答案；答案在 `claim.get` 有双方校验）。
+
 ### 成本控制（四条已落实）
 
 | 措施 | 效果 |
@@ -215,7 +258,14 @@ node scripts/sync-core.js      # core → 云函数，改完 core 必跑
 
 ```js
 (async () => {
-  const run = (action, payload) => wx.cloud.callFunction({ name:'xj-api', data:{ action, payload } }).then(r => r.result.data);
+  /**
+   * userId 必须带上：system.* / seed.demo 现在有管理员门禁
+   * （默认放行 u_admin 与 u_me，见上文「安全边界」）。
+   * 不带的话云函数回落到 u_me，同样能跑通；换成别的身份会被拒绝。
+   */
+  const run = (action, payload) => wx.cloud.callFunction({
+    name: 'xj-api', data: { action, payload, userId: 'u_me' }
+  }).then(r => r.result.data);
   const init = await run('system.step', { step:'init' });
   console.log('① 建集合：', init.created.length ? init.created.join(', ') : '（已存在）');
   const seed = await run('system.step', { step:'seed', reset:true });
@@ -334,32 +384,67 @@ const wgs = coord.gcj02ToWgs84(lng, lat);   // 反向（迭代反解，误差 <1
 ## 测试与防线
 
 ```bash
-npm test    # 10 个套件顺序执行，全部通过
+npm test    # 15 个套件顺序执行，全部通过
 ```
 
 | # | 套件 | 覆盖 | 规模 |
 | --- | --- | --- | --- |
-| 1 | `check-encoding.js` | 全量文件：JS 语法 / 乱码 / BOM / U+FFFD（**白屏类问题先跑这个**） | 115 文件 |
-| 2 | `check-changelog.js --strict` | 变更日志字段完整性、未填占位符、新鲜度 | 20 条记录 |
-| 3 | `check-reachable.js` | 从 `app.js` 出发的依赖图可达性（**防小程序端 require Node 专有模块导致白屏**） | 22 模块 |
-| 4 | `run-utils.test.js` | 算法 + 校区数据 + 跳转规则 | 66 项 |
-| 5 | `run-cloudfunctions.test.js` | 云函数端整条闭环（wx-server-sdk 替身） | 53 项 |
-| 6 | `run-mirror.test.js` | 客户端镜像保留计算字段、本地重算与云端一致（**就是「82% 变 48%」那个 bug**） | 14 项 |
-| 7 | `run-ai-routing.test.js` | 12 种输入组合下的 AI 调用路由（空输入不得发云函数、演示图必须短路） | 12 项 |
-| 8 | `run-pages.test.js` | 10 个页面生命周期 + WXML 变量定义 + 跳转目标 | 32 项 |
-| 9 | `check-project.js` | 小程序结构 9 组规则 | 177 项 |
-| 10 | `check-cloudfunctions.js` | 云函数结构 + core 同步一致性 | 108 项 |
+| 1 | `check-encoding.js` | 全量文件：JS 语法 / 乱码 / BOM / U+FFFD（**白屏类问题先跑这个**） | 167 文件 |
+| 2 | `check-changelog.js` | 变更日志字段完整性、未填占位符、新鲜度 | 最新一条 |
+| 3 | `check-reachable.js` | 从 `app.js` 出发的依赖图可达性（**防小程序端 require Node 专有模块导致白屏**） | 25 模块 |
+| 4 | `run-utils.test.js` | 算法 + 校区数据 + 跳转规则 + 排除撤销 + 会话 + 鉴权 + 数据集不变量 | 81 项 |
+| 5 | `run-cloudfunctions.test.js` | 云函数端整条闭环（wx-server-sdk 替身）+ 鉴权与所有权 | 70 项 |
+| 6 | `run-mirror.test.js` | 客户端镜像保留计算字段、本地重算与云端一致（**就是「82% 变 48%」那个 bug**）+ 身份信封 | 15 项 |
+| 7 | `run-claim-mirror.test.js` | **认领单不能依赖本地镜像**：镜像按身份过滤导致「认领单不存在」、matchId 归一、认领单与 match 的一致性 | 11 项 |
+| 8 | `run-ai-routing.test.js` | 12 种输入组合下的 AI 调用路由（空输入不得发云函数、演示图必须短路） | 12 项 |
+| 9 | `run-pages.test.js` | 11 个页面生命周期 + WXML 变量定义 + 跳转目标 + 本轮问题回归 | 39 项 |
+| 10 | `check-project.js` | 小程序结构规则 | 222 项 |
+| 11 | `check-cloudfunctions.js` | 云函数结构 + core 同步一致性 | 125 项 |
+| 12 | `run-search.test.js` | 检索链路：云端接口、临时查询不落库、白名单输出 | 34 项 |
+| 13 | `run-vision.test.js` | 视觉识别：多物体、置信度、模型请求参数、降级路径 | 23 项 |
+| 14 | `run-performance.test.js` | 有界 Top-K、缓存 LRU、快照同步与写入计数 | 9 项 |
+| 15 | `run-workflow.test.js` | **端到端闭环**：发布 → 匹配 → 候选 → 认领 → 核验 → 会话 → 确认 → 归还 → 反馈（云端 + 离线各一遍） | 18 项 |
 
-**合计：177 项断言 + 285 项结构检查，0 失败。**
+**合计：312 项断言 + 347 项结构检查，0 失败。**
 
-> ⚠️ **`npm test` 依赖同级目录名**。`package.json` 里写的是 `node ../历史版本/scripts/...`，
-> 所以本文档仓的文件夹必须叫 `历史版本`。改名或移动会让整套测试直接跑不起来。
+> ⚠️ **`npm test` 依赖同级目录名**。`package.json` 里的 `log` / `ai:health` 指向
+> `node ../历史版本/scripts/...`，所以文档目录必须叫 `历史版本`。
+> 改名或移动只会让这两个命令失效；测试脚本本身在 `tests/` 里，不受影响。
 
 静态检查覆盖的几条关键规则：
 
 - **跳转 API 与 tabBar 匹配**（`navigateTo` 打开 tabBar 页会**静默失败**：不跳转、不报错、连 fail 回调都不走）
 - **横向滚动写法**（`scroll-view enable-flex` 与 `white-space:nowrap` 不能混用，混用后横向滚动直接不存在）
-- WXML 标签配对、事件处理函数存在性、`usingComponents` 指向、`nav.go` 目标已声明
+- **鉴权边界**（`item.update` / `item.remove` 的所有权、`claim.*` 的角色、`system.*` / `seed.demo` 的管理员限制）
+- WXML 标签配对、事件处理函数存在性（只认 `onXxx` / `goXxx` 命名）、`usingComponents` 指向、`nav.go` 目标已声明
+
+### 端到端闭环为什么必须有
+
+单点函数全对、串起来才错——本项目最贵的一批缺陷都是这一类的：
+
+- `rejectMatch` 对**未落库的候选**静默 `return { ok: false }`，页面照样弹「已排除」；
+- 「从候选卡片直接发起认领」因为 matchId 是**合成 id**（且物品 id 自带下划线）而完全走不通；
+- `claim.confirm` 能被重复调用，把已通过的认领改成「未通过」；
+- `u_me` 被错放进管理员名单，导致所有权校验被静默绕过；
+- **认领页只读本地镜像，而镜像里的认领单是按身份过滤的**，切身份/换设备后就弹「认领单不存在」，
+  可云端明明有这张单——用户看到的就是「数据对不上」。
+
+它们分别在 `run-workflow.test.js`、`run-claim-mirror.test.js` 里有对应用例，
+并且**在修复前确实是红的**。
+
+### 客户端镜像的边界（容易踩）
+
+小程序端为了「秒开 + 离线可用」，把云端数据镜像到本地（`utils/store.js`）。
+代价是**镜像里的内容受同步范围限制**，任何「按 id 直接读镜像」的页面都可能读不到东西：
+
+| 数据 | 快照里的范围 | 后果 |
+| --- | --- | --- |
+| `items` | 全库实体 | 一般够用 |
+| `matches` | 全库 match | 一般够用 |
+| `claims` | **只含当前身份的**（`claim.mine` 按 claimant/keeper 过滤） | 切身份 / 换设备后读不到对方的认领单 |
+
+所以读认领单这类「按 id 精确取一条」的页面，必须**镜像优先、缺失回源**
+（见 `service.claimDetailAsync`），而不是把「镜像里没有」直接当成「不存在」。
 
 ### 两种互补的验证方法
 
@@ -506,9 +591,14 @@ node scripts/check-encoding.js                         # 编码完整性扫描
 | 9 个地点坐标为估算值 | 未现场校准 |
 | 云端每次写入刷新全量快照 | 几百条量级可接受，上万条需改按需分页 |
 | 无真实向量检索 | 当前为内存检索，数据量上万需替换为 pgvector（改造点集中在 `store.js` 的 `applySnapshot`） |
-| 无用户体系 | 云函数已取 `OPENID`，但未做用户表关联与鉴权 |
+| **身份是客户端声明的** | 有所有权/角色/管理员三层服务端校验，但「我是谁」由客户端传（`event.demoUserId`），不是鉴权；真实项目须改 `OPENID` 关联用户表 |
 | 无订阅消息推送 | 当前为站内提醒（真机推送需真实 AppID + 用户授权） |
+| 通知量偏大 | 每条新候选都会给失主发一条 `new_match`，40 条演示数据产生 21 条通知；缺聚合、优先级与已读分层 |
 | 云端写操作无乐观锁 | 未做并发控制 |
+| 发布后记录不可编辑 | 描述/地点/属性填错只能删除重发，会丢掉已产生的候选与反馈样本 |
+| 多图只识别第一张 | 可上传多张，但视觉分析与向量只取 `images[0]`，第 2 张之后对匹配无贡献 |
+| 搜索分与候选分是两个口径 | 「找物」为描述相似度（无时空），候选列表为五路融合分；已在界面标注区别，未强行统一 |
+| `demo://` 照片跨设备不可用 | 演示图库标识不是可上传资源，云端记录里仍是 `demo://xxx`，别的设备打开是占位卡 |
 | 未做答辩 PPT | 待补 |
 
 **明确不做的**：社交、积分商城、排行榜等与核心问题无关的功能。

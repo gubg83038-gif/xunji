@@ -1,4 +1,5 @@
 <view class="page page--flush">
+  <view class="search" bindtap="goSearch">文字 / 图片找物 · 无需先发布记录 ›</view>
   <!--
     上下文切换：每条记录是一个持续匹配任务。
     横向滚动必须用「scroll-view + white-space:nowrap + 子项 inline-block」这套组合；
@@ -33,6 +34,21 @@
     <view class="sum__sub">
       阈值 {{stat.threshold}}% · 检索耗时 {{elapsed}} ms
     </view>
+  </view>
+
+  <!--
+    已排除提示条。
+    排除后候选会立刻从列表消失，用户必须能看到「它去哪儿了」并且能撤销，
+    否则界面看起来「只有一个提示、什么都没变」。
+  -->
+  <view class="excluded-bar" wx:if="{{excludedCount && filterKey !== 'rejected'}}">
+    <text class="excluded-bar__icon">🚫</text>
+    <text class="grow">已排除 {{excludedCount}} 个候选，不会再参与推荐</text>
+    <text class="excluded-bar__link" bindtap="onShowExcluded">查看 / 撤销</text>
+  </view>
+
+  <view class="excluded-tip" wx:if="{{filterKey === 'rejected' && matches.length}}">
+    下面是已排除的候选。点「撤销排除」即可放回候选列表，重新参与排序。
   </view>
 
   <!-- 排序 + 过滤 -->
@@ -93,8 +109,17 @@
         bind:tapcard="onMatchTap"
         bind:reject="onMatchReject"
         bind:claim="onMatchClaim"
+        bind:restore="onMatchRestore"
       />
     </block>
+    <empty-state
+      wx:elif="{{filterKey === 'rejected'}}"
+      icon="♻️"
+      title="还没有排除过候选"
+      desc="在候选卡片上点「排除」后，这里会保留记录，需要时可以撤销"
+      actionText="回到全部候选"
+      bind:action="onExcludedEmptyAction"
+    />
     <empty-state
       wx:elif="{{!loading}}"
       icon="🫧"

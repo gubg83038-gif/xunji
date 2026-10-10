@@ -118,6 +118,52 @@ function iconOf(key) {
   return get(key).icon;
 }
 
+/** 模型标签专用归一化：英文只匹配完整标签，避免 glass / card 子串误判。 */
+function normalizeLabel(label) {
+  const text = String(label || '').trim().toLowerCase();
+  if (CATEGORY_MAP[text]) return text;
+  const english = {
+    cup: ['mug', 'water bottle', 'bottle', 'thermos', 'tumbler'],
+    umbrella: ['umbrellas', 'parasol'],
+    earphone: ['earphones', 'earbuds', 'headphones', 'earbud case'],
+    key: ['keys', 'keychain', 'key fob'],
+    bag: ['backpack', 'handbag', 'school bag', 'tote bag'],
+    card: ['cards', 'id card', 'student card', 'campus card', 'meal card', 'credit card', 'bank card'],
+    device: ['phone', 'smartphone', 'tablet', 'laptop', 'power bank'],
+    charger: ['charging cable', 'usb cable', 'power adapter'],
+    glasses: ['eyeglasses', 'eye glasses', 'spectacles', 'sunglasses', 'reading glasses', 'eyeglass frames'],
+    watch: ['wristwatch', 'smartwatch', 'fitness band'],
+    book: ['books', 'notebook', 'textbook'],
+    stationery: ['pen', 'pencil', 'pencil case', 'ruler'],
+    cloth: ['clothing', 'clothes', 'hat', 'scarf', 'gloves'],
+    sport: ['sports equipment', 'racket', 'ball']
+  };
+  const token = text.replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
+  const key = Object.keys(english).find((k) => english[k].indexOf(token) >= 0);
+  if (key) return key;
+  // 中文模型标签可包含细分类名称；不拿未知英文作模糊子串匹配。
+  return /[\u4e00-\u9fff]/.test(text) ? guessFromText(text) : 'other';
+}
+
+/** 可见外观观察提示，不把私有核验特征当作照片中必然可见的信息。 */
+const VISUAL_HINTS = {
+  cup: '杯身与杯盖颜色、杯型、把手、可见文字与贴纸',
+  umbrella: '折叠或长柄、伞柄形态、伞面颜色与图案、伞套',
+  earphone: '耳机或充电盒、外壳形态、保护套、耳柄与可见标识',
+  key: '可见钥匙数量、钥匙头形态、钥匙环与挂件',
+  bag: '包型、肩带、口袋与拉链位置、面料纹理、挂件',
+  card: '卡片轮廓、底色、版式、可见校徽或标识、卡套；小字看不清仍可识别为卡片，不猜姓名或号码',
+  device: '设备外形、屏幕或镜头位置、保护壳、可见标识',
+  charger: '充电头或线缆、接口形态、线材颜色、可见标签',
+  glasses: '两片镜片、镜框与镜腿、鼻梁连接；观察全框/半框/无框、镜框形状和颜色、透明或深色镜片、鼻托、镜盒；镜片透明不代表没有物体',
+  watch: '表盘形状、表带颜色和纹理、表扣、可见标识',
+  book: '封面颜色、可见书名和图案、装订与边角磨损',
+  stationery: '文具类型、笔身或笔袋形态、颜色、可见标识',
+  cloth: '衣物类型、颜色、纹理、可见图案和配饰',
+  sport: '器材类型、轮廓、手柄或球面纹理、可见标识',
+  other: '用 description 写出具体物体名称及可见轮廓、颜色和特征，不强行套用已有类别'
+};
+
 /** 用关键词猜测类别（文字输入 → 类别） */
 function guessFromText(text) {
   const src = String(text || '').toLowerCase();
@@ -165,6 +211,8 @@ module.exports = {
   get,
   nameOf,
   iconOf,
+  normalizeLabel,
+  VISUAL_HINTS,
   guessFromText,
   profile
 };

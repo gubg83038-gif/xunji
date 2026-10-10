@@ -1,0 +1,39 @@
+<view class="page search-page">
+  <view class="intro"><view class="intro__title">描述一下，帮你找物</view><view class="intro__sub">输入文字或选择照片，无需先发布记录</view></view>
+  <view class="query card">
+    <textarea class="query__text" value="{{description}}" maxlength="500" placeholder="例如：黑色保温杯，杯身有白色文字和一张贴纸" bindinput="onInput" />
+    <view class="query__bottom">
+      <view class="photo" bindtap="onChooseImage" wx:if="{{!image}}"><image src="/static/ui/ic-camera.png" mode="aspectFit" />添加照片</view>
+      <view class="photo-preview" wx:else><image src="{{image}}" mode="aspectFill" /><view><view bindtap="onRemoveImage">移除照片</view><view class="retry-image" bindtap="onRetryImage">重新识别</view></view></view>
+      <text class="count">{{description.length}} / 500</text>
+    </view>
+    <button class="search-button" bindtap="onSearch" loading="{{loading}}" disabled="{{loading}}">{{loading ? '正在分析并寻找…' : '查找相似物品'}}</button>
+  </view>
+  <view class="examples" wx:if="{{!searched}}"><view class="muted">试试这些描述</view><view wx:for="{{examples}}" wx:key="*this" data-index="{{index}}" bindtap="onExample" class="example">{{item}} ↗</view></view>
+  <view class="options"><view class="scope {{kind === 'found' ? 'active' : ''}}" bindtap="onKind" data-kind="found">找拾到的物品</view><view class="scope {{kind === 'lost' ? 'active' : ''}}" bindtap="onKind" data-kind="lost">找失物记录</view><picker range="{{categories}}" range-key="name" value="{{categoryIndex}}" bindchange="onCategory"><view class="category">{{categories[categoryIndex].name}} ▾</view></picker></view>
+  <view class="error" wx:if="{{error}}">{{error}}</view>
+  <button wx:if="{{error}}" class="local-search" bindtap="onSearchLocal" disabled="{{loading}}">使用本机数据找物</button>
+  <view class="muted tip" wx:if="{{dirty}}">输入已修改，点击搜索查看新结果</view>
+  <view class="analysis card" wx:if="{{clues.length || visualDescription || suggestions.length}}">
+    <view class="analysis__title">{{model}}</view>
+    <view class="visual-description" wx:if="{{visualDescription}}">照片观察：{{visualDescription}}</view>
+    <view class="clues"><text class="clue" wx:for="{{clues}}" wx:key="key">{{item.label}} · {{item.value}}</text></view>
+    <view class="suggestion" wx:for="{{suggestions}}" wx:key="key">待确认 · {{item.label}}：{{item.displayValue}}（{{item.reason}}）</view>
+  </view>
+  <view class="result-head" wx:if="{{searched && !loading && !error && !dirty}}">{{total ? '找到 ' + total + ' 个相似选项' : '暂时没有相关物品'}}<text class="muted">检索 {{scanned}} 条 · {{elapsed}} ms</text></view>
+  <view wx:for="{{results}}" wx:key="id" class="result card" data-id="{{item.id}}" bindtap="onDetail">
+    <view class="result__photo"><image wx:if="{{item.hasImage}}" src="{{item.image}}" mode="aspectFill" data-id="{{item.id}}" binderror="onImageError" /><view wx:else class="result__fallback">{{item.icon}}</view><view class="photo-label">{{item.photoLabel}}</view></view>
+    <view class="result__body"><view class="result__top"><text class="result__title">{{item.title}}</text><text class="score">{{item.scorePercent}}%</text></view><view class="result__meta">{{item.locationName}} · {{item.statusLabel}}</view><view class="reason" wx:for="{{item.reasons}}" wx:for-item="reason" wx:key="*this">{{reason}}</view><view class="detail-link">查看物品详情 ›</view></view>
+  </view>
+  <view class="empty card" wx:if="{{searched && !results.length && !loading && !error && !dirty}}">试试更简短的描述，或放宽类别筛选。物品库中还没有的物品，需要发布失物后持续寻找。</view>
+  <view class="muted tip" wx:if="{{note}}">{{note}}</view>
+  <!--
+    口径说明（必须保留）：搜索页没有可配对的失物，算不出五路融合分，
+    因此这里的百分比与候选列表的「综合匹配度」不是同一个东西。
+  -->
+  <view class="muted tip">
+    上面的百分比是<b>描述相似度</b>（只看文字与属性，用于排序）；发布/认领后的候选列表显示的是<b>综合匹配度</b>，
+    额外计入图片、地点与时间，同一件物品两边数值不同是正常现象。
+    是否为同一件物品还需核对，没有真实照片的记录会显示类别图标。
+  </view>
+</view>

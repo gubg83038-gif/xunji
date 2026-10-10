@@ -4,7 +4,7 @@
  * 本文件提供两套实现，通过 core/config.js 的 ai.provider 选择：
  *
  *  1) local（默认，离线可用）
- *     - extractAttributes：确定性伪随机（图像）+ 文本抽取（描述）
+ *     - extractAttributes：演示图内置线索 + 文本抽取（描述）
  *     - embed：本地语义指纹向量（同义词概念 + 字符 bigram 哈希）
  *
  *  2) deepseek（联网）
@@ -131,7 +131,7 @@ function extractFromText(description) {
 /* ===================== 图像属性建议（本地兜底实现） ===================== */
 
 /**
- * 本地「伪 VLM」：同一个 image 标识永远得到同样的结果（可复现）。
+ * 本地仅支持演示图线索；未知真实照片返回空属性。
  * provider=local 时使用；provider=deepseek 时由 core/ai/deepseek.js 取代。
  */
 function extractFromImage(image, type) {
@@ -139,30 +139,8 @@ function extractFromImage(image, type) {
   const spec = imageSpec.get(image);
   if (spec) return Object.assign({ category: spec.category }, spec.hints);
 
-  const rng = makeRng('vlm::' + image);
-  const categories_ = categories.list();
-  const bias = type === 'found'
-    ? ['cup', 'umbrella', 'key', 'card', 'earphone']
-    : ['cup', 'earphone', 'umbrella', 'charger', 'card'];
-  const cateKey = rng() < 0.72 ? pick(rng, bias) : pick(rng, categories_).key;
-  const cate = categories.get(cateKey);
-
-  const mainColor = pick(rng, cate.colorHints);
-  const paletteAll = ['黑色', '白色', '灰色', '深灰', '银灰', '蓝色', '深蓝', '红色', '绿色', '卡其', '粉色', '棕色'];
-  const secondary = pick(rng, paletteAll);
-  const attrs = {
-    category: cateKey,
-    main_color: mainColor,
-    secondary_color: secondary === mainColor ? '' : secondary,
-    material: pick(rng, cate.materialHints),
-    shape: pick(rng, SHAPE_WORDS)
-  };
-  if (rng() < 0.5) attrs.logo_text = pick(rng, ['品牌Logo居中', '白色纵向文字Logo', '正面英文标志', '侧面小Logo', '无Logo']);
-  if (rng() < 0.4) attrs.pattern = pick(rng, ['纯色', '条纹', '格纹', '波点', '渐变']);
-  if (rng() < 0.35) attrs.accessory = pick(rng, ['带挂件', '带保护壳', '带说明书', '带原包装']);
-  if (rng() < 0.3) attrs.damage_mark = pick(rng, ['有轻微划痕', '有掉漆', '有磨损']);
-  if (rng() < 0.25) attrs.sticker = pick(rng, ['有卡通贴纸', '有反光贴纸']);
-  return attrs;
+  // 无视觉模型时不能从照片文件名推断外观。
+  return {};
 }
 
 /* ===================== 对外统一入口 ===================== */
@@ -247,25 +225,65 @@ function mergeAiResult(local, ai) {
   const attributes = Object.assign({}, base.attributes);
   const sources = Object.assign({}, base.sources);
   const confidence = Object.assign({}, base.confidence);
+  const uncertain = [];
+  const conflicts = [];
+  const suggestions = [];
+  const proposals = Object.assign({}, ai.attributes);
+  const proposedConfidence = Object.assign({}, ai.confidence);
+  // 发布页会再次合并视觉结果；待确认值也要经过同一白名单校验，不能在第二次合并中消失。
+  (Array.isArray(ai.suggestions) ? ai.suggestions : []).forEach((s) => {
+    if (!s || ALLOWED_FIELDS.indexOf(s.key) < 0) return;
+    if (proposals[s.key] && !(s.key === 'category' && proposals.category === 'other' && ai.sources && ai.sources.category === 'default')) return;
+    proposals[s.key] = s.value;
+    proposedConfidence[s.key] = s.confidence;
+  });
 
-  Object.keys(ai.attributes).forEach((key) => {
+  Object.keys(proposals).forEach((key) => {
     if (ALLOWED_FIELDS.indexOf(key) < 0) return;
-    const value = ai.attributes[key];
-    if (value === undefined || value === null || value === '') return;
-    if (Array.isArray(value) && !value.length) return;
+    const rawValue = proposals[key];
+    let value = key === 'features' && Array.isArray(rawValue)
+      ? rawValue.filter((v) => typeof v === 'string').map((v) => v.trim().slice(0, 160)).filter(Boolean).slice(0, 4)
+      : typeof rawValue === 'string' && key !== 'features' ? rawValue.trim().slice(0, 160) : '';
+    if (!value || (Array.isArray(value) && !value.length)) return;
+    if (key === 'category') {
+      value = categories.normalizeLabel(value);
+      // other 并不证明主体是什么，不能覆盖已知的类别。
+      if (value === 'other') return;
+    }
+    // 低置信度模型建议不覆盖现有文字或演示线索，零分不能被默认值吞掉。
+    const rawConfidence = proposedConfidence[key];
+    const trustedDemo = ai.model === 'demo-hints' || (ai.sources && ai.sources[key] === 'demo');
+    const fieldConfidence = typeof rawConfidence === 'number' && Number.isFinite(rawConfidence)
+      ? Math.min(1, Math.max(0, rawConfidence)) : trustedDemo ? 0.72 : null;
+    if (fieldConfidence === null || fieldConfidence < 0.5) {
+      uncertain.push(FIELD_LABELS[key] || key);
+      suggestions.push({ key, label: FIELD_LABELS[key] || key, value,
+        displayValue: key === 'category' ? categories.nameOf(value) : Array.isArray(value) ? value.join('、') : value,
+        confidence: fieldConfidence, reason: fieldConfidence === null ? '未提供置信度，请确认' : '把握较低，请确认' });
+      return;
+    }
+    if (['user', 'text', 'both'].indexOf(base.sources && base.sources[key]) >= 0) {
+      const same = key === 'main_color' || key === 'secondary_color'
+        ? colorUtil.colorSimilarity(base.attributes[key], value).score >= 0.99
+        : JSON.stringify(base.attributes[key]) === JSON.stringify(value);
+      if (!same) conflicts.push(FIELD_LABELS[key] || key);
+      return;
+    }
     attributes[key] = value;
     sources[key] = ai.sources && ai.sources[key] ? ai.sources[key] : 'ai';
-    confidence[key] = (ai.confidence && ai.confidence[key]) || 0.88;
+    confidence[key] = fieldConfidence;
   });
 
   const notes = (base.notes || []).concat(ai.notes || []);
-  return { attributes, sources, confidence, notes, description: ai.description || '' };
+  if (uncertain.length) notes.push('以下识别线索缺少置信度或把握较低，已保留为待确认建议：' + uncertain.join('、'));
+  if (conflicts.length) notes.push('图片建议与已填写的信息不同，已保留文字或人工值：' + conflicts.join('、'));
+  return { attributes, sources, confidence, notes, suggestions, description: ai.description || '' };
 }
 
 /* ===================== 向量表示 ===================== */
 
 const EMB_DIM = 64;
-const EMB_CACHE = {};
+const EMB_CACHE = new Map();
 
 /**
  * 语义指纹向量：把文本/图片标识映射到单位球面上的向量（本地实现）。
@@ -276,12 +294,18 @@ const EMB_CACHE = {};
  *    接入 CLIP/SigLIP 或第三方 embedding 后，替换本函数即可，上层无需改动。
  */
 function embed(kind, payload) {
+  // 真实图片路径没有像素信息，绝不能生成视觉证据。
+  if (kind === 'image' && !imageSpec.get(payload)) return null;
   const cacheKey = kind + '|' + String(payload || '');
-  if (EMB_CACHE[cacheKey]) return EMB_CACHE[cacheKey];
+  if (EMB_CACHE.has(cacheKey)) {
+    const cached = EMB_CACHE.get(cacheKey);
+    EMB_CACHE.delete(cacheKey);
+    EMB_CACHE.set(cacheKey, cached);
+    return cached;
+  }
   const vec = embedUncached(kind, payload);
-  const keys = Object.keys(EMB_CACHE);
-  if (keys.length > 2000) delete EMB_CACHE[keys[0]];
-  EMB_CACHE[cacheKey] = vec;
+  if (EMB_CACHE.size >= 2000) EMB_CACHE.delete(EMB_CACHE.keys().next().value);
+  EMB_CACHE.set(cacheKey, vec);
   return vec;
 }
 
@@ -300,10 +324,7 @@ function embedUncached(kind, payload) {
         .concat(spec.keywords || [])
         .concat(Object.keys(spec.hints || {}).map((k) => String(spec.hints[k])));
       colorUtil.tokenize(spec.label + ' ' + (spec.keywords || []).join(' ')).forEach((t) => tokens.push(t));
-    } else {
-      tokens = ['img'].concat(String(payload || '').split(/[\/\\._\-\s]/).filter(Boolean));
-      colorUtil.tokenize(String(payload || '')).forEach((t) => tokens.push(t));
-    }
+    } else return null;
   }
 
   tokens.forEach((token) => {
@@ -339,12 +360,17 @@ function cosine(a, b) {
 /**
  * 图像相似度：
  * 若条目带有 imageDescVec（由视觉模型描述编码而来），优先使用它；
- * 否则退回 image embedding（demo 图片或历史数据）。
+ * 否则仅使用演示图片线索；真实图片路径及旧路径向量不可用。
  */
 function imageSimilarity(itemA, itemB) {
-  if (!itemA.image && !itemB.image) return { score: 0, available: false };
-  const va = (itemA.embeddings && (itemA.embeddings.imageDesc || itemA.embeddings.image)) || null;
-  const vb = (itemB.embeddings && (itemB.embeddings.imageDesc || itemB.embeddings.image)) || null;
+  // 从有效描述/演示线索取向量，忽略历史缓存中的路径向量。
+  const vector = (item) => {
+    if (!item || !item.image) return null;
+    if (String(item.imageDescription || '').trim()) return embed('text', item.imageDescription);
+    return imageSpec.get(item.image) ? embed('image', item.image) : null;
+  };
+  const va = vector(itemA);
+  const vb = vector(itemB);
   if (!va || !vb) return { score: 0, available: false };
   const cos = cosine(va, vb);
   const mapped = Math.min(1, Math.max(0, (cos - 0.15) / 0.7));
@@ -353,7 +379,7 @@ function imageSimilarity(itemA, itemB) {
 
 /**
  * 为一条记录生成完整向量集合（文本 + 图像）。
- * 图像向量优先用 AI 描述编码，其次用图片标识编码。
+ * 图像向量优先用 AI 描述编码，其次仅用演示图片线索。
  */
 function buildEmbeddings(item) {
   const description = (item && item.description) || '';

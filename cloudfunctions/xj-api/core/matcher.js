@@ -272,15 +272,15 @@ function textScore(a, b) {
 
 /* ===================== 5) 动态权重归一化 ===================== */
 
-function computeWeights(userLost, found, options) {
+function computeWeights(userLost, found, options, imageEvidence) {
   const opts = options || {};
   const modes = opts.modes || null; // 消融实验用
   const w = Object.assign({}, opts.baseWeights || BASE_WEIGHTS);
   const available = {};
   const notes = [];
 
-  // 图像模态：双方都需要有图片
-  available.image = !!(userLost.image && found.image);
+  // 双方必须具备可用视觉证据；旧路径向量不能参与加权。
+  available.image = (imageEvidence || vlm.imageSimilarity(userLost, found)).available;
   // 文字模态：一方有描述即可（失主没照片时描述就是主要线索）
   available.text = !!(userLost.description || found.description);
   // 属性模态：需要结构化属性
@@ -313,7 +313,7 @@ function computeWeights(userLost, found, options) {
   const norm = {};
   Object.keys(w).forEach((k) => { norm[k] = sum > 0 ? w[k] / sum : 0; });
 
-  if (available.image === false) notes.push('缺少图片，α=0，权重已重新归一化');
+  if (available.image === false) notes.push('缺少可用图片分析线索，α=0，权重已重新归一化');
   if (available.text === false) notes.push('缺少文字描述，γ=0');
   if (available.attr === false) notes.push('结构化属性不足，β=0（推荐补充描述或图片）');
 
@@ -330,14 +330,14 @@ function computeWeights(userLost, found, options) {
  */
 function scorePair(lostItem, foundItem, options) {
   const t0 = Date.now();
-  const wInfo = computeWeights(lostItem, foundItem, options);
+  const img = vlm.imageSimilarity(lostItem, foundItem);
+  const wInfo = computeWeights(lostItem, foundItem, options, img);
   const weights = wInfo.weights;
 
   const attrResult = compareAttributes(lostItem.attributes, foundItem.attributes);
   const geo = geoScore(lostItem.location, foundItem.location, wInfo.profile.geoSigma);
   const time = timeScore(lostItem, foundItem, wInfo.profile.timeTau);
   const text = textScore(lostItem, foundItem);
-  const img = vlm.imageSimilarity(lostItem, foundItem);
 
   const scores = {
     image: img.available ? img.score : 0,

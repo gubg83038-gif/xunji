@@ -25,8 +25,11 @@ const CLOUD_DIR = path.join(ROOT, 'cloudfunctions');
 
 /** 需要在各处共享的文件（相对 core/ 的路径） */
 const SHARED_FILES = [
+  'search.js',
+  'topk.js',
   'color.js',
   'time.js',
+  'chat.js',
   'coord.js',
   'campus-data.js',
   'categories.js',

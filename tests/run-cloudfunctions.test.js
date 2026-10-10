@@ -64,6 +64,23 @@ async function call(action, payload) {
   return res.data;
 }
 
+/**
+ * 以指定身份调用（身份在 event 顶层，对应客户端 utils/api.js 的 demoUserId 信封）。
+ * 服务端的所有权 / 权限校验只认这个身份。
+ */
+async function callAs(userId, action, payload) {
+  const res = await api.main({ action, payload: payload || {}, userId });
+  if (!res.ok) {
+    throw new Error('action ' + action + '（身份 ' + userId + '）失败：' + (res.error && res.error.message));
+  }
+  return res.data;
+}
+
+/** 以指定身份调用，返回原始结果（用于断言失败场景） */
+async function rawAs(userId, action, payload) {
+  return api.main({ action, payload: payload || {}, userId });
+}
+
 async function main() {
   /* ===================== 1. 初始化与数据灌入 ===================== */
   group('1. 集合初始化与演示数据灌入');
@@ -371,16 +388,150 @@ async function main() {
     assert.ok(data.claim.answers[0].reason.length > 0, '应给出核验理由');
   });
 
-  await test('claim.confirm 通过后进入待交接', async () => {
-    const data = await call('claim.confirm', { claimId, action: 'pass', remark: '特征一致' });
-    assert.strictEqual(data.claim.status, 'verified');
-    const lost = await store.getItem('lost_cup_01');
-    assert.strictEqual(lost.status, 'waiting_handover', '失物应进入待交接');
+  /* ---------- 核验期临时会话（此时 claimId 处于 submitted）---------- */
+
+  await test('临时会话在 submitted 阶段开启，消息脱敏且对方昵称可见', async () => {
+    const claim = await store.getClaim(claimId);
+    assert.ok(claim.claimantId && claim.keeperId, '认领单应有双方身份');
+    assert.notStrictEqual(claim.claimantId, claim.keeperId, '前置条件：双方不是同一个人');
+
+    const m1 = await callAs(claim.claimantId, 'claim.message', {
+      claimId,
+      text: '明天中午12:30 图书馆一楼服务台可以吗，我手机 13812345678'
+    });
+    assert.ok(m1.message, '应返回新建的消息');
+    assert.ok(m1.message.text.indexOf('13812345678') < 0, '手机号必须被脱敏');
+    assert.ok(m1.message.text.indexOf('12:30') >= 0, '交接时间应保留');
+    assert.strictEqual(m1.message.redacted, true, '应标记已脱敏');
+    assert.strictEqual(m1.session.state, 'open');
+    assert.strictEqual(m1.session.canSend, true);
+
+    const m2 = await callAs(claim.keeperId, 'claim.message', {
+      claimId,
+      text: '可以，我会带上杯套一起过去'
+    });
+    assert.strictEqual(m2.message.senderRole, 'keeper', '第二条应由拾物者发出');
+
+    const read = await callAs(claim.claimantId, 'claim.message', { claimId });
+    assert.strictEqual(read.messages.length, 2, '应有两条消息，实际 ' + read.messages.length);
+    assert.strictEqual(read.messages[0].mine, true, '自己的消息应标记 mine');
+    assert.strictEqual(read.messages[0].senderName, '我');
+    assert.strictEqual(read.messages[1].mine, false, '对方消息不应标记 mine');
+    assert.ok(read.messages[1].senderName && read.messages[1].senderName !== '我',
+      '对方消息应显示昵称，实际：' + JSON.stringify(read.messages[1]));
+    assert.ok(read.messages[1].text.indexOf('杯套') >= 0, '对方消息内容应保留');
+  });
+
+  await test('会话外的人既读不到也发不了', async () => {
+    const read = await callAs('u_intruder', 'claim.message', { claimId });
+    assert.strictEqual(read.session.state, 'closed', '非双方应看到 closed');
+    assert.strictEqual(read.messages.length, 0, '非双方不应拿到消息内容');
+
+    const denied = await rawAs('u_intruder', 'claim.message', { claimId, text: '偷看' })
+      .then((r) => (r.ok ? null : r.error));
+    assert.ok(denied, '非双方发送应失败');
+    assert.ok(/只有本次认领的双方/.test(denied.message), '应给出权限原因，实际：' + denied.message);
+  });
+
+  await test('伪造 viewerId 也读不到别人的隐藏特征（防冒充）', async () => {
+    const item = await store.getItem('found_cup_01');
+    assert.ok(item && item.privateFeatures && item.privateFeatures.length, '前置条件：该记录有隐藏特征');
+
+    // 冒充物主：payload 里声明 viewerId，身份却是别人
+    const spoof = await callAs('u_zhao', 'item.list', { viewerId: item.userId });
+    const target = spoof.items.find((x) => x.id === item.id);
+    assert.strictEqual(target.privateFeatures.length, 0,
+      '伪造 viewerId 不应拿到隐藏特征，实际泄露 ' + target.privateFeatures.length + ' 项');
+    assert.ok(target.privateCount > 0, '数量仍应保留供界面提示');
+
+    // 物主本人可以看到
+    const mine = await callAs(item.userId, 'item.list', {});
+    const own = mine.items.find((x) => x.id === item.id);
+    assert.ok(own.privateFeatures.length > 0, '物主本人应能看到自己的隐藏特征');
+  });
+
+  await test('认领详情只对双方开放，外人拿不到核验答案', async () => {
+    const claim = await store.getClaim(claimId);
+    const outsider = await rawAs('u_zhao', 'claim.get', { claimId });
+    assert.strictEqual(outsider.ok, false, '外人不应读到认领详情');
+    assert.strictEqual(outsider.error.code, 'FORBIDDEN', '错误码应为 FORBIDDEN');
+    assert.ok(outsider.error.message.indexOf('失主与拾物者') >= 0,
+      '应说明只有双方可读，实际：' + outsider.error.message);
+
+    const insider = await callAs(claim.keeperId, 'claim.get', { claimId });
+    assert.ok(insider.claim, '双方应能读到认领详情');
+  });
+
+  await test('只有失主本人能为自己的失物发起认领', async () => {
+    const list = await call('match.candidates', { itemId: 'lost_glasses_01', topK: 5, minScore: 0.3 });
+    assert.ok(list.views.length >= 1, '前置条件：该失物应有候选');
+    const lost = await store.getItem('lost_glasses_01');
+
+    const denied = await rawAs('u_zhao', 'claim.start', { matchId: list.views[0].id });
+    if (lost.userId === 'u_zhao') return; // 演示数据里恰好是本人，跳过
+    assert.strictEqual(denied.ok, false, '非失主不应能发起认领');
+    assert.ok(/只能为自己的失物/.test(denied.error.message), '应给出原因，实际：' + denied.error.message);
+  });
+
+  /* 鉴权类用例集中在文件末尾的第 11 组：它们需要 seed.demo(reset) 建档，
+     放在这里会把后续依赖既有认领单的用例一起清掉。 */
+
+  await test('认领单不存在时读取会话返回 NOT_FOUND，而不是空会话', async () => {
+    const r = await call('claim.message', { claimId: 'claim_not_exist', userId: 'u_me' })
+      .then(() => null, (e) => e);
+    assert.ok(r, '不存在的认领单应失败');
+    assert.ok(/不存在/.test(r.message), '应提示认领单不存在，实际：' + r.message);
+  });
+
+  await test('answering 阶段会话未开启：新建认领单不能发消息', async () => {
+    const list = await call('match.candidates', { itemId: 'lost_card_01', topK: 5, minScore: 0.3 });
+    assert.ok(list.views.length >= 1, '前置条件：lost_card_01 应有候选');
+    const fresh = await call('claim.start', { matchId: list.views[0].id });
+    assert.strictEqual(fresh.claim.status, 'answering', '前置条件：新认领单应处于待回答');
+
+    const r = await call('claim.message', {
+      claimId: fresh.claim.id,
+      userId: fresh.claim.claimantId,
+      text: '在吗'
+    }).then(() => null, (e) => e);
+    assert.ok(r, 'answering 阶段发送应失败');
+    assert.ok(/开启会话/.test(r.message), '应提示提交核验后才能开启，实际：' + r.message);
+  });
+
+  await test('已提交的认领单不能被重复提交核验回答（状态守卫）', async () => {
+    const r = await call('claim.submit', { claimId, answers: ['随便再答一次'] })
+      .then(() => null, (e) => e);
+    assert.ok(r, '重复提交应失败');
+    assert.ok(/不能重复提交/.test(r.message), '应给出状态原因，实际：' + r.message);
+    const claim = await store.getClaim(claimId);
+    assert.strictEqual(claim.status, 'submitted', '状态不应被改写');
+    assert.ok(claim.answers[0].answer.indexOf('划痕') >= 0, '原有回答应保持不变');
+  });
+
+  await test('归还后会话转只读，不能再发消息但历史可回看', async () => {
+    const claim = await store.getClaim(claimId);
+    // 确认只能由拾物者本人操作
+    await callAs(claim.keeperId, 'claim.confirm', { claimId, action: 'pass', remark: '特征一致' });
+
+    const verified = await callAs(claim.claimantId, 'claim.message', { claimId });
+    assert.strictEqual(verified.session.state, 'open', '待交接阶段会话仍可用');
+
+    await callAs(claim.claimantId, 'claim.return', { claimId });
+    const read = await callAs(claim.claimantId, 'claim.message', { claimId });
+    assert.strictEqual(read.session.state, 'readonly', '归还后应为只读');
+    assert.strictEqual(read.session.canSend, false);
+    assert.ok(read.messages.length >= 2, '历史消息仍可回看');
+
+    const denied = await rawAs(claim.claimantId, 'claim.message', { claimId, text: '再聊一句' });
+    assert.strictEqual(denied.ok, false, '只读状态发送应失败');
+    assert.ok(denied.error.message.indexOf('已结束') >= 0,
+      '应说明会话已结束，实际：' + denied.error.message);
   });
 
   await test('claim.return 完成状态闭环', async () => {
-    const data = await call('claim.return', { claimId });
-    assert.strictEqual(data.claim.status, 'returned');
+    // 上一个用例已完成归还，这里只复核闭环结果（重复归还本身会被状态守卫拒绝）
+    const claim = await store.getClaim(claimId);
+    assert.strictEqual(claim.status, 'returned');
     const lost = await store.getItem('lost_cup_01');
     const found = await store.getItem('found_cup_01');
     assert.strictEqual(lost.status, 'recovered', '失物应为已归还');
@@ -398,13 +549,81 @@ async function main() {
     assert.ok(ids.indexOf('found_cup_01') < 0, '已归还的拾物不应再入候选');
   });
 
-  await test('排除候选写入弱负样本', async () => {
-    const list = await call('match.candidates', { itemId: 'lost_card_01', topK: 5, minScore: 0.3 });
-    if (list.views.length) {
-      await call('match.reject', { matchId: list.views[0].id, reason: '测试排除' });
-      const feedbacks = await store.allFeedbacks();
-      assert.ok(feedbacks.some((f) => f.userAction === 'rejected'), '应记录 rejected 反馈');
-    }
+  /* ---------- 排除与撤销（服务端也要过滤，不能只靠前端）---------- */
+
+  await test('排除后候选不再出现在候选列表', async () => {
+    const before = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    assert.ok(before.views.length >= 2, '前置条件：该失物应有多个候选');
+    const target = before.views[0];
+    await call('match.reject', {
+      matchId: target.id,
+      reason: '测试',
+      lostId: target.lostId,
+      foundId: target.foundId
+    });
+    const after = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    assert.ok(!after.views.some((v) => v.id === target.id), '已排除的候选不应再返回');
+    assert.strictEqual(after.views.length, before.views.length - 1, '候选数量应减少 1');
+
+    await call('match.restore', { matchId: target.id });
+  });
+
+  await test('从未落库的候选也能被排除（旧实现静默失败）', async () => {
+    const list = await call('match.candidates', {
+      itemId: 'lost_key_01', topK: 5, minScore: 0.3, includeRejected: true
+    });
+    const target = list.views[0];
+
+    const noCtx = await call('match.reject', { matchId: 'match_never_persisted_01', reason: '测试' })
+      .then(() => null, (e) => e);
+    assert.ok(noCtx, '缺少上下文应明确失败');
+    assert.ok(/无法排除/.test(noCtx.message), '应说明原因，实际：' + noCtx.message);
+
+    // 用一个库里不存在的 matchId，但带上真实的 lostId / foundId：
+    // 服务端应据此补出记录（store 按 lostId+foundId 去重，所以复用同一对记录）
+    const virtualId = 'match_virtual_' + Date.now();
+    await call('match.reject', {
+      matchId: virtualId,
+      reason: '测试',
+      lostId: target.lostId,
+      foundId: target.foundId
+    });
+    const match = await store.getMatch(target.id);
+    assert.ok(match, '排除后记录必须真的落库');
+    assert.strictEqual(match.status, 'rejected', '状态应为已排除');
+
+    const after = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    assert.ok(!after.views.some((v) => v.foundId === target.foundId && v.lostId === target.lostId),
+      '排除后列表里不应再有这条候选');
+
+    await call('match.restore', { matchId: target.id, lostId: target.lostId, foundId: target.foundId });
+  });
+
+  await test('match.restore 撤销排除后候选回到列表且 userStatus 复位', async () => {
+    const before = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    const target = before.views[0];
+
+    await call('match.reject', {
+      matchId: target.id, reason: '测试', lostId: target.lostId, foundId: target.foundId
+    });
+    const hidden = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    assert.ok(!hidden.views.some((v) => v.id === target.id), '前置条件：排除后应不可见');
+
+    await call('match.restore', { matchId: target.id, lostId: target.lostId, foundId: target.foundId });
+
+    const after = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    assert.ok(after.views.some((v) => v.id === target.id), '撤销后应重新出现在候选列表');
+    const match = await store.getMatch(target.id);
+    assert.strictEqual(match.userStatus, 'new', 'userStatus 必须一起复位');
+    assert.strictEqual(match.status, 'new', 'status 必须一起复位');
+  });
+
+  await test('重复撤销给出明确失败原因', async () => {
+    const list = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    const r = await call('match.restore', { matchId: list.views[0].id })
+      .then(() => null, (e) => e);
+    assert.ok(r, '未排除的候选撤销应失败');
+    assert.ok(/没有/.test(r.message), '应说明该候选没有被排除，实际：' + r.message);
   });
 
   /* ===================== 5. 统计与实验 ===================== */
@@ -464,12 +683,15 @@ async function main() {
   await test('核验未通过时状态回滚为可继续寻找', async () => {
     const list = await call('match.candidates', { itemId: 'lost_umbrella_01', topK: 3, minScore: 0.3 });
     if (list.views.length) {
-      const started = await call('claim.start', { matchId: list.views[0].id });
-      await call('claim.submit', { claimId: started.claim.id, answers: ['完全不知道'] });
-      const confirmed = await call('claim.confirm', { claimId: started.claim.id, action: 'reject' });
-      assert.strictEqual(confirmed.claim.status, 'rejected');
       const lost = await store.getItem('lost_umbrella_01');
-      assert.strictEqual(lost.status, 'candidate_found', '拒绝后失物应回到发现候选状态');
+      // 认领只能由失主本人发起，确认只能由拾物者本人操作
+      const started = await callAs(lost.userId, 'claim.start', { matchId: list.views[0].id });
+      const claim = await store.getClaim(started.claim.id);
+      await callAs(claim.claimantId, 'claim.submit', { claimId: claim.id, answers: ['完全不知道'] });
+      const confirmed = await callAs(claim.keeperId, 'claim.confirm', { claimId: claim.id, action: 'reject' });
+      assert.strictEqual(confirmed.claim.status, 'rejected');
+      const after = await store.getItem('lost_umbrella_01');
+      assert.strictEqual(after.status, 'candidate_found', '拒绝后失物应回到发现候选状态');
     }
   });
 
@@ -610,6 +832,126 @@ async function main() {
     const r = await raw('item.get', { id: 'lost_not_in_cloud_999' });
     assert.strictEqual(r.ok, false, '读取应失败');
     assert.strictEqual(r.error.code, 'NOT_FOUND', '错误码应为 NOT_FOUND');
+  });
+
+  /* ===================== 11. 鉴权与所有权 =====================
+   * 放在最末尾：这些用例需要 seed.demo({reset:true}) 干净建档，
+   * 放在前面会把后续依赖既有认领单的用例一起清掉。
+   */
+  group('11. 鉴权与所有权（安全边界）');
+
+  await test('非所有者不能修改或删除别人的记录', async () => {
+    await call('seed.demo', { reset: true });
+    const victim = await store.getItem('lost_cup_01');
+    assert.ok(victim, '前置条件：应有 lost_cup_01');
+    assert.notStrictEqual(victim.userId, 'u_zhao', '前置条件：受害者不是 u_zhao');
+
+    const upd = await rawAs('u_zhao', 'item.update', {
+      id: victim.id, patch: { description: '被陌生人改了' }
+    });
+    assert.strictEqual(upd.ok, false, '非所有者不应能更新');
+    assert.strictEqual(upd.error.code, 'FORBIDDEN');
+    assert.ok(/只能修改自己发布的记录/.test(upd.error.message), '应给出所有权原因');
+    const unchanged = await store.getItem(victim.id);
+    assert.notStrictEqual(unchanged.description, '被陌生人改了', '记录不应被改动');
+
+    const del = await rawAs('u_zhao', 'item.remove', { id: victim.id });
+    assert.strictEqual(del.ok, false, '非所有者不应能删除');
+    assert.ok(/只能删除自己发布的记录/.test(del.error.message), '应给出所有权原因');
+    assert.ok(await store.getItem(victim.id), '记录应仍然存在');
+
+    // 所有者本人可以
+    const mine = await callAs(victim.userId, 'item.update', {
+      id: victim.id, patch: { description: '本人改的描述' }
+    });
+    assert.ok(mine.item, '所有者应能更新自己的记录');
+  });
+
+  await test('非管理员不能重置演示数据或初始化集合', async () => {
+    const seed = await rawAs('u_chen', 'seed.demo', { reset: true });
+    assert.strictEqual(seed.ok, false, '非管理员不应能重置数据');
+    assert.strictEqual(seed.error.code, 'FORBIDDEN');
+    assert.ok(/仅限管理员/.test(seed.error.message), '应给出管理员限制原因');
+
+    const setup = await rawAs('u_chen', 'system.setup', {});
+    assert.strictEqual(setup.ok, false, '非管理员不应能跑初始化');
+    const init = await rawAs('u_chen', 'system.init', {});
+    assert.strictEqual(init.ok, false, '非管理员不应能建集合');
+    const step = await rawAs('u_chen', 'system.step', { step: 'init' });
+    assert.strictEqual(step.ok, false, '非管理员不应能分步初始化');
+
+    // 管理员仍然可用（演示默认账号 u_me，Console 一键初始化脚本不带 userId）
+    const adminSeed = await callAs('u_me', 'seed.demo', {});
+    assert.ok(adminSeed.itemCount > 0, '管理员应能用 seed.demo');
+  });
+
+  await test('同一条失物不能同时挂两张进行中的认领单', async () => {
+    await call('seed.demo', { reset: true });
+    const list = await call('match.candidates', { itemId: 'lost_key_01', topK: 5, minScore: 0.3 });
+    const lost = await store.getItem('lost_key_01');
+    assert.ok(list.views.length >= 2, '前置条件：该失物应有 2 个以上候选');
+
+    await callAs(lost.userId, 'claim.start', { matchId: list.views[0].id });
+    const second = await rawAs(lost.userId, 'claim.start', { matchId: list.views[1].id });
+    assert.strictEqual(second.ok, false, '第二张认领单应被拒绝');
+    assert.ok(/进行中的认领单/.test(second.error.message),
+      '应说明已有进行中的认领，实际：' + second.error.message);
+  });
+
+  await test('只有拾物者本人能确认/拒绝，且不能重复确认', async () => {
+    await call('seed.demo', { reset: true });
+    const list = await call('match.candidates', { itemId: 'lost_card_01', topK: 5, minScore: 0.3 });
+    const lost = await store.getItem('lost_card_01');
+    const s = await callAs(lost.userId, 'claim.start', { matchId: list.views[0].id });
+    const c = await store.getClaim(s.claim.id);
+    assert.notStrictEqual(c.claimantId, c.keeperId, '前置条件：双方不是同一个人');
+    await callAs(c.claimantId, 'claim.submit', {
+      claimId: c.id,
+      answers: c.questions.map(() => '卡套是深蓝色的，角落有一道折痕')
+    });
+
+    // 失主（非拾物者）不能替拾物者确认
+    const byClaimant = await rawAs(c.claimantId, 'claim.confirm', { claimId: c.id, action: 'pass' });
+    assert.strictEqual(byClaimant.ok, false, '失主不应能替拾物者确认');
+    assert.ok(/只有拾物者本人/.test(byClaimant.error.message), '应给出权限原因');
+
+    // 拾物者确认通过
+    const pass = await callAs(c.keeperId, 'claim.confirm', { claimId: c.id, action: 'pass', remark: '' });
+    assert.strictEqual(pass.claim.status, 'verified');
+
+    // 重复确认（改成未通过）必须被拒绝
+    const again = await rawAs(c.keeperId, 'claim.confirm', { claimId: c.id, action: 'reject' });
+    assert.strictEqual(again.ok, false, '不能重复确认');
+    assert.ok(/不能重复确认/.test(again.error.message), '应给出状态原因');
+    const after = await store.getClaim(c.id);
+    assert.strictEqual(after.status, 'verified', '状态不应被改写');
+  });
+
+  await test('未通过核验不能直接完成归还，外人也拿不到归还权限', async () => {
+    await call('seed.demo', { reset: true });
+    const list = await call('match.candidates', { itemId: 'lost_umbrella_01', topK: 5, minScore: 0.3 });
+    const lost = await store.getItem('lost_umbrella_01');
+    const s = await callAs(lost.userId, 'claim.start', { matchId: list.views[0].id });
+    const c = await store.getClaim(s.claim.id);
+
+    const early = await rawAs(c.claimantId, 'claim.return', { claimId: c.id });
+    assert.strictEqual(early.ok, false, '尚未确认核验就归还应被拒绝');
+    assert.ok(/需先完成核验确认/.test(early.error.message), '应给出状态原因');
+
+    const outsider = await rawAs('u_zhao', 'claim.return', { claimId: c.id });
+    assert.strictEqual(outsider.ok, false, '外人不应能完成归还');
+    assert.ok(/只有本次认领的双方/.test(outsider.error.message), '应给出权限原因');
+  });
+
+  await test('只有失主本人能为自己的失物发起认领', async () => {
+    const list = await call('match.candidates', { itemId: 'lost_glasses_01', topK: 5, minScore: 0.3 });
+    assert.ok(list.views.length >= 1, '前置条件：该失物应有候选');
+    const lost = await store.getItem('lost_glasses_01');
+    if (lost.userId === 'u_zhao') return; // 演示数据里恰好是本人，跳过
+
+    const denied = await rawAs('u_zhao', 'claim.start', { matchId: list.views[0].id });
+    assert.strictEqual(denied.ok, false, '非失主不应能发起认领');
+    assert.ok(/只能为自己的失物/.test(denied.error.message), '应给出原因，实际：' + denied.error.message);
   });
 
   /* ===================== 输出 ===================== */

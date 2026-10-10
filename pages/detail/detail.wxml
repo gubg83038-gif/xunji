@@ -61,6 +61,7 @@
         bind:tapcard="onMatchTap"
         bind:reject="onMatchReject"
         bind:claim="onMatchClaim"
+        bind:restore="onMatchRestore"
       />
     </block>
     <empty-state

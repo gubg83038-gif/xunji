@@ -74,8 +74,18 @@
   <view class="mc__foot">
     <view class="mc__more" catchtap="onToggleReason">{{expanded ? '收起' : '更多依据'}}</view>
     <view class="mc__actions">
-      <view wx:if="{{showReject}}" class="btn btn--sm btn--plain" catchtap="onReject">排除</view>
-      <view class="btn btn--sm btn--primary" catchtap="onClaim">发起认领</view>
+      <!--
+        已排除的候选：显示醒目标记 + 「撤销排除」，而不是继续摆一个「排除」按钮。
+        用户反馈「点了排除界面没有任何变化」，本质是缺少这个状态标记。
+      -->
+      <block wx:if="{{match.status === 'rejected'}}">
+        <view class="mc__rejected-tag">🚫 已排除</view>
+        <view class="btn btn--sm btn--ghost" catchtap="onRestore">撤销排除</view>
+      </block>
+      <block wx:else>
+        <view wx:if="{{showReject}}" class="btn btn--sm btn--plain" catchtap="onReject">排除</view>
+        <view class="btn btn--sm btn--primary" catchtap="onClaim">发起认领</view>
+      </block>
     </view>
   </view>
 </view>

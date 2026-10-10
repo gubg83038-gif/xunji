@@ -189,6 +189,43 @@
   line-height: 1.55;
 }
 
+/* ---------- 核验问答：快捷选项（互斥三选一）---------- */
+.quick {
+  display: flex;
+  gap: 14rpx;
+  margin-bottom: 16rpx;
+}
+
+.quick__btn {
+  flex: 1;
+  text-align: center;
+  font-size: 25rpx;
+  padding: 16rpx 0;
+  border-radius: var(--r-pill);
+  background: #f2f4f7;
+  color: #667085;
+  border: 2rpx solid transparent;
+}
+
+/* 选中态必须足够显眼：这是「我点到了」的唯一回执 */
+.quick__btn.is-on {
+  background: var(--c-primary-weak);
+  color: var(--c-primary-deep);
+  border-color: var(--c-primary);
+  font-weight: 700;
+}
+
+.quick-warn {
+  margin-top: 14rpx;
+  padding: 16rpx 20rpx;
+  border-radius: var(--r-sm);
+  background: #fff7e6;
+  border: 2rpx solid #fde3b0;
+  font-size: 21rpx;
+  color: #92400e;
+  line-height: 1.6;
+}
+
 .hints {
   display: flex;
   gap: 12rpx;
@@ -271,4 +308,131 @@
   margin-top: 20rpx;
   font-size: 24rpx;
   color: var(--c-primary);
+}
+
+/* ---------- 非双方访问提示 ---------- */
+.outsider__title {
+  font-size: 30rpx;
+  font-weight: 700;
+  color: var(--c-ink);
+}
+
+.outsider__text {
+  margin-top: 12rpx;
+  font-size: 23rpx;
+  color: var(--c-ink-2);
+  line-height: 1.65;
+}
+
+.outsider__op {
+  margin-top: 20rpx;
+  font-size: 24rpx;
+  color: var(--c-primary);
+}
+
+/* ---------- 核验期临时会话 ---------- */
+.chat__state {
+  font-size: 20rpx;
+  padding: 4rpx 14rpx;
+  border-radius: var(--r-pill);
+  background: #f2f4f7;
+  color: var(--c-ink-2);
+}
+
+.chat__state--open { background: var(--c-success-weak); color: #067647; }
+.chat__state--readonly { background: #f2f4f7; color: var(--c-ink-3); }
+
+.chat__list {
+  margin-top: 16rpx;
+  max-height: 520rpx;
+  background: #f9fafb;
+  border-radius: var(--r-md);
+  padding: 18rpx;
+}
+
+.chat__empty {
+  font-size: 22rpx;
+  color: var(--c-ink-3);
+  line-height: 1.6;
+  padding: 12rpx 4rpx;
+}
+
+/* 对方消息靠左、自己的靠右（对齐靠 margin，避免 flex 在 scroll-view 里的老问题） */
+.chat__row {
+  margin-bottom: 20rpx;
+}
+
+.chat__row.is-mine {
+  text-align: right;
+}
+
+.chat__who {
+  font-size: 19rpx;
+  color: var(--c-ink-3);
+  margin-bottom: 6rpx;
+}
+
+.chat__bubble {
+  display: inline-block;
+  max-width: 78%;
+  text-align: left;
+  font-size: 25rpx;
+  line-height: 1.6;
+  padding: 16rpx 20rpx;
+  border-radius: var(--r-md);
+  background: #fff;
+  color: var(--c-ink);
+  border: 2rpx solid var(--c-line);
+  word-break: break-all;
+}
+
+.chat__row.is-mine .chat__bubble {
+  background: var(--c-primary-weak);
+  border-color: #bcd2fb;
+  color: var(--c-primary-deep);
+}
+
+.chat__input {
+  display: flex;
+  align-items: center;
+  gap: 14rpx;
+  margin-top: 18rpx;
+}
+
+.chat__field {
+  background: #f9fafb;
+  border: 2rpx solid #e4e7ec;
+  border-radius: var(--r-pill);
+  padding: 18rpx 24rpx;
+  font-size: 25rpx;
+}
+
+.chat__send {
+  flex: none;
+  height: 72rpx;
+  padding: 0 34rpx;
+  line-height: 72rpx;
+  border-radius: var(--r-pill);
+  background: var(--g-primary);
+  color: #fff;
+  font-size: 26rpx;
+  font-weight: 600;
+}
+
+.chat__send.is-disabled {
+  background: #d0d5dd;
+  color: #fff;
+}
+
+.chat__closed {
+  margin-top: 18rpx;
+  font-size: 22rpx;
+  color: var(--c-ink-3);
+}
+
+.chat__notice {
+  margin-top: 16rpx;
+  font-size: 20rpx;
+  color: var(--c-ink-3);
+  line-height: 1.6;
 }

@@ -178,7 +178,9 @@ function currentProvider() {
  */
 async function buildVector(kind, payload) {
   if (provider === 'http') {
-    const text = kind === 'text' ? String(payload || '') : String((payload && payload.imageDescription) || payload || '');
+    const spec = typeof payload === 'object' && payload ? payload : { image: payload };
+    if (kind === 'image' && !String(spec.imageDescription || '').trim()) return vlm.embed('image', spec.image);
+    const text = kind === 'text' ? String(payload || '') : String(spec.imageDescription);
     const vecs = await embedViaHttp([text], providerOptions);
     return normalize(vecs[0]);
   }

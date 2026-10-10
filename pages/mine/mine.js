@@ -23,12 +23,15 @@ Page({
   },
 
   onShow() {
+    this._visible = true;
     this.refresh();
     if (app.globalData.mode === 'cloud') {
-      app.refresh().then(() => this.refresh());
+      app.refresh().then((changed) => { if (changed && this._visible && !this._closed) this.refresh(); });
     }
   },
 
+  onHide() { this._visible = false; },
+  onUnload() { this._closed = true; this._visible = false; },
   refresh() {
     const userId = app.globalData.userId;
     const user = store.user(userId);
