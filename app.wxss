@@ -416,10 +416,22 @@ picker {
   color: var(--c-ink);
   background: #f9fafb;
   border-radius: var(--r-sm);
-  padding: 20rpx 22rpx;
 }
 
-.textarea { min-height: 170rpx; line-height: 1.55; }
+/*
+ * 小程序原生 input 不会在所有设备上按纵向 padding 扩展内部文本行盒。
+ * 仅设置 padding 会让 placeholder/已输入文字在窄屏 Android 上被上下裁切，
+ * 所以输入框使用明确的高度和水平内边距；height 也让触控区保持一致。
+ */
+.input {
+  display: block;
+  height: 80rpx;
+  min-height: 80rpx;
+  padding: 0 22rpx;
+  line-height: 80rpx;
+}
+
+.textarea { min-height: 170rpx; padding: 20rpx 22rpx; line-height: 1.55; }
 
 .picker-value {
   display: flex;
