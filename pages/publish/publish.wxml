@@ -235,14 +235,17 @@
         wx:if="{{!aiVideoFailed}}"
         class="ai-panel__video"
         src="/static/ui/ai-recognizing.mp4"
-        autoplay
-        loop
-        muted
+        poster="/static/ui/mascot-think.png"
+        autoplay="{{true}}"
+        loop="{{true}}"
+        muted="{{true}}"
         controls="{{false}}"
         show-center-play-btn="{{false}}"
         show-fullscreen-btn="{{false}}"
         show-play-btn="{{false}}"
+        enable-progress-gesture="{{false}}"
         object-fit="contain"
+        bindloadedmetadata="onAiVideoReady"
         binderror="onAiVideoError"
       />
       <image wx:else class="ai-panel__mascot" src="/static/ui/mascot-think.png" mode="aspectFit" />

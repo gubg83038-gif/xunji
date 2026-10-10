@@ -442,6 +442,7 @@ async function main() {
     const fsx = require('fs');
     const wxml = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.wxml'), 'utf8');
     const wxss = fsx.readFileSync(path.join(ROOT, 'pages/publish/publish.wxss'), 'utf8');
+    const appWxss = fsx.readFileSync(path.join(ROOT, 'app.wxss'), 'utf8');
 
     // 手动输入必须包在独立的 subfield 区块里（有分隔线与说明文字）
     const subfields = (wxml.match(/class="subfield"/g) || []).length;
@@ -453,6 +454,9 @@ async function main() {
     }
     if (wxml.indexOf('location-input') >= 0) {
       throw new Error('不应再使用旧的 location-input（那个类只有 margin-top，正是重叠的成因）');
+    }
+    if (!/\.input\s*\{[^}]*height:\s*80rpx[\s\S]*?line-height:\s*80rpx/.test(appWxss)) {
+      throw new Error('全局 .input 必须使用固定高度和行高，避免原生输入框裁切 placeholder');
     }
   });
 
@@ -468,8 +472,11 @@ async function main() {
     if (wxml.indexOf('class="ai-mask"') < 0 || wxml.indexOf('ai-recognizing.mp4') < 0) {
       throw new Error('发布页缺少 AI 自定义识别遮罩或动画素材');
     }
-    if (js.indexOf("aiState: 'idle'") < 0 || js.indexOf('beginAiProgress') < 0 || js.indexOf('finishAiProgress') < 0) {
+    if (js.indexOf("aiState: 'idle'") < 0 || js.indexOf('beginAiProgress') < 0 || js.indexOf('finishAiProgress') < 0 || js.indexOf('AI_OVERLAY_MIN_VISIBLE_MS') < 0) {
       throw new Error('发布页未定义完整的 AI 状态流程');
+    }
+    if (wxml.indexOf('poster="/static/ui/mascot-think.png"') < 0 || wxml.indexOf('bindloadedmetadata="onAiVideoReady"') < 0) {
+      throw new Error('AI 视频必须提供首帧海报并等待元数据就绪，避免快速识别时黑屏');
     }
     if (js.indexOf("wx.showLoading({ title: 'AI 识别中'") >= 0) {
       throw new Error('AI 识别不应继续使用系统级 wx.showLoading');
@@ -481,6 +488,8 @@ async function main() {
     if (inst.data.aiState !== 'preparing' || !inst.data.extracting) {
       throw new Error('AI 开始时应进入 preparing 状态');
     }
+    inst.onAiVideoReady();
+    if (!inst.data.aiVideoReady) throw new Error('视频元数据就绪后应显示视频动效');
     inst.onAiVideoError();
     if (!inst.data.aiVideoFailed) throw new Error('动画失败后应切换静态降级素材');
     inst.finishAiProgress('fallback', '正在使用本地规则');

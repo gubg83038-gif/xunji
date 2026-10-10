@@ -14,6 +14,7 @@ const FIELD_ORDER = [
 ];
 
 const AI_EDITABLE = FIELD_ORDER;
+const AI_OVERLAY_MIN_VISIBLE_MS = 1800;
 
 /**
  * 自定义隐藏特征的前缀。
@@ -86,6 +87,7 @@ Page({
     extracting: false,
     aiState: 'idle',
     aiMessage: '',
+    aiVideoReady: false,
     aiVideoFailed: false,
     attrFields: [],
     editingField: '',
@@ -273,8 +275,10 @@ Page({
       extracting: true,
       aiState: 'preparing',
       aiMessage: '正在读取图片',
+      aiVideoReady: false,
       aiVideoFailed: false
     });
+    this._aiStartedAt = Date.now();
     this._aiStageTimer = setTimeout(() => {
       if (!this._closed) this.setAiProgress('recognizing', '正在识别物品特征');
     }, 420);
@@ -285,13 +289,24 @@ Page({
     clearTimeout(this._aiStageTimer);
     this.setAiProgress(state, message);
     clearTimeout(this._aiCloseTimer);
+    const elapsed = Date.now() - (this._aiStartedAt || Date.now());
+    const closeDelay = Math.max(450, AI_OVERLAY_MIN_VISIBLE_MS - elapsed);
     this._aiCloseTimer = setTimeout(() => {
-      if (!this._closed) this.setData({ aiState: 'idle', aiMessage: '', extracting: false });
-    }, 450);
+      if (!this._closed) this.setData({
+        aiState: 'idle',
+        aiMessage: '',
+        aiVideoReady: false,
+        extracting: false
+      });
+    }, closeDelay);
+  },
+
+  onAiVideoReady() {
+    if (!this._closed) this.setData({ aiVideoReady: true });
   },
 
   onAiVideoError() {
-    if (!this._closed) this.setData({ aiVideoFailed: true });
+    if (!this._closed) this.setData({ aiVideoReady: false, aiVideoFailed: true });
   },
 
   /**
