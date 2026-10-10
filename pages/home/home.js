@@ -23,16 +23,21 @@ Page({
   },
 
   onShow() {
+    this._visible = true;
     this.refresh();
     // 云端模式下从后台同步最新数据，保持候选与状态新鲜
     if (app.globalData.mode === 'cloud') {
-      app.refresh().then(() => this.refresh());
+      app.refresh().then((changed) => { if (changed && this._visible && !this._closed) this.refresh(); });
     }
   },
 
-  onPullDownRefresh() {
-    this.refresh();
-    wx.stopPullDownRefresh();
+  onHide() { this._visible = false; },
+  onUnload() { this._closed = true; this._visible = false; },
+  async onPullDownRefresh() {
+    try {
+      if (app.globalData.mode === 'cloud') await app.refresh({ force: true });
+      if (!this._closed) this.refresh();
+    } finally { wx.stopPullDownRefresh(); }
   },
 
   refresh() {
@@ -83,6 +88,10 @@ Page({
     wx.navigateTo({ url: '/pages/publish/publish?type=' + type });
   },
 
+  goSearch() {
+    wx.navigateTo({ url: '/pages/search/search' });
+  },
+
   goMatches() {
     nav.go(app, '/pages/matches/matches');
   },
@@ -128,17 +137,44 @@ Page({
 
   onMatchReject(e) {
     const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
     wx.showModal({
       title: '排除该候选',
-      content: '排除后该候选不会再出现在列表中，并作为负样本用于优化排序策略。',
+      content: '排除后该候选不会再出现在列表中，可在「匹配 → 已排除」里撤销。',
       success: async (res) => {
         if (!res.confirm) return;
         wx.showLoading({ title: '处理中', mask: true });
-        await service.rejectMatchAsync(matchId, '用户手动排除');
+        const r = await service.rejectMatchAsync(matchId, '用户手动排除', {
+          lostId: m.lostId,
+          foundId: m.foundId,
+          score: m.score,
+          threshold: m.threshold,
+          passed: m.passed
+        });
         wx.hideLoading();
-        wx.showToast({ title: '已排除', icon: 'success' });
+        if (!r || !r.ok) {
+          wx.showToast({ title: (r && r.message) || '排除失败', icon: 'none' });
+          return;
+        }
+        // 先刷新再提示：首页推荐位会立刻去掉这条候选
         this.refresh();
+        wx.showToast({ title: '已排除，可在匹配页撤销', icon: 'none', duration: 2200 });
       }
+    });
+  },
+
+  onMatchRestore(e) {
+    const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
+    wx.showLoading({ title: '处理中', mask: true });
+    service.restoreMatchAsync(matchId, { lostId: m.lostId, foundId: m.foundId }).then((r) => {
+      wx.hideLoading();
+      if (!r || !r.ok) {
+        wx.showToast({ title: (r && r.message) || '撤销失败', icon: 'none' });
+        return;
+      }
+      wx.showToast({ title: '已恢复该候选', icon: 'success' });
+      this.refresh();
     });
   },
 

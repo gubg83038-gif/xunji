@@ -16,7 +16,8 @@ const FILTERS = [
   { key: 'passed', label: '超过阈值' },
   { key: 'new', label: '未查看' },
   { key: 'claimed', label: '认领中' },
-  { key: 'returned', label: '已归还' }
+  { key: 'returned', label: '已归还' },
+  { key: 'rejected', label: '已排除' }
 ];
 
 Page({
@@ -33,6 +34,8 @@ Page({
     categories: [],
     categoryKey: 'all',
     matches: [],
+    excluded: [],
+    excludedCount: 0,
     stat: null,
     loading: true,
     elapsed: 0
@@ -57,6 +60,7 @@ Page({
   },
 
   onShow() {
+    this._visible = true;
     // 从别的 tab 带着参数切进来时（例如首页点类别），在此消费
     const params = nav.takeParams(app);
     if (params.category) this.setData({ categoryKey: params.category });
@@ -66,16 +70,21 @@ Page({
     this.buildContexts();
     this.refresh();
     if (app.globalData.mode === 'cloud') {
-      app.refresh().then(() => {
+      app.refresh().then((changed) => {
+        if (!changed || !this._visible || this._closed) return;
         this.buildContexts();
         this.refresh();
       });
     }
   },
 
-  onPullDownRefresh() {
-    this.refresh();
-    wx.stopPullDownRefresh();
+  onHide() { this._visible = false; },
+  onUnload() { this._closed = true; this._visible = false; },
+  async onPullDownRefresh() {
+    try {
+      if (app.globalData.mode === 'cloud') await app.refresh({ force: true });
+      if (!this._closed) { this.buildContexts(); this.refresh(); }
+    } finally { wx.stopPullDownRefresh(); }
   },
 
   /** 构建可切换的“寻找任务”上下文 */
@@ -128,6 +137,10 @@ Page({
     this.refresh();
   },
 
+  goSearch() {
+    wx.navigateTo({ url: '/pages/search/search' });
+  },
+
   onKeywordInput(e) {
     this.setData({ keyword: e.detail.value });
   },
@@ -152,6 +165,21 @@ Page({
     let elapsed = 0;
     let candidates = 0;
 
+    /**
+     * 服务层已经把「已排除」的候选从候选流里剔除了。
+     * 这里再额外拉一次含排除项的列表，用于：
+     *   · 「已排除」筛选页签；
+     *   · 列表顶部的「撤销排除」入口——否则用户排除错了没法回头。
+     */
+    const withRejected = ctx.kind === 'lost'
+      ? service.candidatesForLost(ctx.id, { topK: 20, minScore: 0.3, includeRejected: true }).views
+      : ctx.kind === 'found'
+        ? service.candidatesForFound(ctx.id, { topK: 20, minScore: 0.3, includeRejected: true }).views
+        : service.allCandidateViews({ minScore: 0.3, includeRejected: true });
+    const excluded = withRejected
+      .filter((m) => m.status === 'rejected')
+      .map((m) => Object.assign({}, m, { showUndo: true }));
+
     if (ctx.kind === 'lost') {
       const res = service.candidatesForLost(ctx.id, { topK: 20, minScore: 0.3 });
       list = res.views;
@@ -167,8 +195,10 @@ Page({
     }
 
     // 过滤
-    if (this.data.filterKey !== 'all') {
-      const fk = this.data.filterKey;
+    const fk = this.data.filterKey;
+    if (fk === 'rejected') {
+      list = excluded;
+    } else if (fk !== 'all') {
       list = list.filter((m) => {
         if (fk === 'passed') return m.passed;
         if (fk === 'returned') return m.status === 'returned';
@@ -199,20 +229,23 @@ Page({
       list = list.slice().sort((a, b) => b.score - a.score);
     }
 
-    const passed = list.filter((x) => x.passed).length;
-    const avg = list.length ? Math.round((list.reduce((s, x) => s + x.score, 0) / list.length) * 100) : 0;
+    const visible = list.filter((x) => x.status !== 'rejected');
+    const passed = visible.filter((x) => x.passed).length;
+    const avg = visible.length ? Math.round((visible.reduce((s, x) => s + x.score, 0) / visible.length) * 100) : 0;
 
     this.setData({
       matches: list,
+      excluded,
+      excludedCount: excluded.length,
       loading: false,
       elapsed,
       stat: {
-        total: list.length,
+        total: visible.length,
         passed,
         avg,
         candidates,
         contextLabel: ctx.label,
-        threshold: list.length ? Math.round(list[0].threshold * 100) : 0
+        threshold: visible.length ? Math.round(visible[0].threshold * 100) : 0
       }
     });
   },
@@ -224,17 +257,51 @@ Page({
 
   onMatchReject(e) {
     const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
     wx.showActionSheet({
       itemList: ['颜色/外观不一致', '地点距离太远', '时间对不上', '不是同一件物品', '其他原因'],
       success: async (res) => {
         const reasons = ['颜色/外观不一致', '地点距离太远', '时间对不上', '不是同一件物品', '其他原因'];
         wx.showLoading({ title: '处理中', mask: true });
-        await service.rejectMatchAsync(matchId, reasons[res.tapIndex]);
+        // 带上候选上下文：多数候选从未落库，离线模式下要靠它才能补出这条排除记录
+        const r = await service.rejectMatchAsync(matchId, reasons[res.tapIndex], {
+          lostId: m.lostId,
+          foundId: m.foundId,
+          score: m.score,
+          threshold: m.threshold,
+          passed: m.passed
+        });
         wx.hideLoading();
-        wx.showToast({ title: '已排除，感谢反馈', icon: 'success' });
+        if (!r || !r.ok) {
+          wx.showToast({ title: (r && r.message) || '排除失败', icon: 'none' });
+          return;
+        }
+        // 先刷新再提示：候选会立刻从列表里消失，并出现在「已排除」页签，可随时撤销。
         this.refresh();
+        wx.showToast({ title: '已排除，可在「已排除」里撤销', icon: 'none', duration: 2200 });
       },
       fail: () => {}
+    });
+  },
+
+  onMatchRestore(e) {
+    const matchId = e.detail.matchId;
+    const m = e.detail.match || {};
+    wx.showModal({
+      title: '撤销排除',
+      content: '该候选会重新回到候选列表（分数与排序保持不变）。',
+      success: async (res) => {
+        if (!res.confirm) return;
+        wx.showLoading({ title: '处理中', mask: true });
+        const r = await service.restoreMatchAsync(matchId, { lostId: m.lostId, foundId: m.foundId });
+        wx.hideLoading();
+        if (!r.ok) {
+          wx.showToast({ title: r.message || '撤销失败', icon: 'none' });
+          return;
+        }
+        this.refresh();
+        wx.showToast({ title: '已恢复该候选', icon: 'success' });
+      }
     });
   },
 
@@ -264,6 +331,18 @@ Page({
     } else {
       wx.navigateTo({ url: '/pages/publish/publish?type=found' });
     }
+  },
+
+  /** 一键跳到「已排除」，让用户看得到自己排除了哪些 */
+  onShowExcluded() {
+    this.setData({ filterKey: 'rejected' });
+    this.refresh();
+  },
+
+  /** 已排除页签下的空状态按钮：回到全部候选 */
+  onExcludedEmptyAction() {
+    this.setData({ filterKey: 'all' });
+    this.refresh();
   },
 
   onExplain() {

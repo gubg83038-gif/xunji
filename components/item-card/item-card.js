@@ -61,6 +61,12 @@ Component({
       this.triggerEvent('reject', { matchId: m.id, match: m });
     },
 
+    onRestore(e) {
+      if (e && e.stopPropagation) e.stopPropagation();
+      const m = this.data.match;
+      this.triggerEvent('restore', { matchId: m.id, match: m });
+    },
+
     onClaim(e) {
       if (e && e.stopPropagation) e.stopPropagation();
       const m = this.data.match;

@@ -696,6 +696,340 @@ test('参数合并：query 与暂存参数都能生效，且 query 优先', () =
   assert.strictEqual(empty.itemId, '');
 });
 
+/* ===================== 10. 排除候选与撤销 ===================== */
+group('10. 排除候选（用户反馈「点了排除界面没变化」）');
+
+/** 取一条失物与它的候选上下文（排除需要 lostId / foundId 才能给未落库的候选建记录） */
+function candidateFixture() {
+  const lost = store.itemsOf('lost').filter((l) => {
+    const list = service.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+    return list.length >= 2;
+  })[0];
+  assert.ok(lost, '演示数据里应有至少 2 个候选的失物');
+  const views = service.candidatesForLost(lost.id, { topK: 20, minScore: 0.3 }).views;
+  return { lost, target: views[0], before: views };
+}
+
+function contextOf(lost, view) {
+  return {
+    lostId: lost.id,
+    foundId: view.foundId,
+    score: view.score,
+    threshold: view.threshold,
+    passed: view.passed
+  };
+}
+
+test('候选列表不会出现「自己匹配自己」（演示数据里有 kind 写错的记录）', () => {
+  store.itemsOf('lost').forEach((l) => {
+    const views = service.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+    assert.ok(!views.some((v) => v.foundId === l.id), '失物 ' + l.id + ' 的候选里出现了它自己');
+    assert.ok(!views.some((v) => v.id === 'match_' + l.id + '__' + l.id), '自匹配记录不应生成');
+  });
+});
+
+/**
+ * 演示数据的不变量：记录的 kind 必须与它所在的集合一致。
+ *
+ * 真实缺陷：`mock/seed.js` 的 buildItem 原本写
+ *   `cfg.kind === 'found' ? 'found' : 'lost'`
+ * ——没传 kind 就静默兜成 lost。seedHistory() 造「已归还案例」的那条拾物
+ * 恰好漏传，于是被塞进 lostItems：失物数 +1、拾物数 -1，还会产生幽灵候选。
+ * 这类「命名与归属不一致」必须静态拦住，不能靠下游兜底。
+ */
+test('演示数据的 kind 必须与所在集合一致，且 id 前缀与 kind 相符', () => {
+  const check = (list, expectKind, label) => {
+    list.forEach((i) => {
+      assert.strictEqual(i.kind, expectKind,
+        label + '集合里的 ' + i.id + ' 的 kind 是 ' + i.kind + '（应为 ' + expectKind + '）');
+      const prefix = expectKind === 'lost' ? 'lost_' : 'found_';
+      assert.ok(String(i.id).indexOf(prefix) === 0,
+        label + '集合里出现了前缀不是 ' + prefix + ' 的记录：' + i.id);
+    });
+  };
+  check(store.itemsOf('lost'), 'lost', '失物');
+  check(store.itemsOf('found'), 'found', '拾物');
+});
+
+test('已归还的历史案例仍然完整（match 与 claim 都在，且指向同一条记录）', () => {
+  const lost = store.getItem('lost_earphone_02');
+  const found = store.getItem('found_earphone_05');
+  assert.ok(lost, '历史案例的失物应存在');
+  assert.ok(found, '历史案例的拾物应存在（曾因 kind 兜底错进失物集合）');
+  assert.strictEqual(lost.status, 'recovered', '历史案例失物应为已找回');
+  assert.strictEqual(found.status, 'returned', '历史案例拾物应为已归还');
+
+  const matchId = 'match_' + lost.id + '__' + found.id;
+  const m = store.getMatch(matchId);
+  assert.ok(m, '历史案例的 match 应存在：' + matchId);
+  assert.strictEqual(m.status, 'returned');
+  const claim = store.getClaim('claim_history_01');
+  assert.ok(claim, '历史案例的认领单应存在');
+  assert.strictEqual(claim.matchId, matchId, '认领单应指向同一条 match');
+});
+
+test('排除后候选立即从候选中消失（打分引擎不知道交互状态，必须在这一层过滤）', () => {
+  const fx = candidateFixture();
+  const r = service.rejectMatch(fx.target.id, '测试排除', contextOf(fx.lost, fx.target));
+  assert.strictEqual(r.ok, true, '排除应成功：' + r.message);
+
+  const after = service.candidatesForLost(fx.lost.id, { topK: 20, minScore: 0.3 }).views;
+  assert.ok(!after.some((v) => v.id === fx.target.id), '已排除的候选不能再出现在候选列表里');
+  assert.strictEqual(after.length, fx.before.length - 1, '候选数量应减少 1');
+
+  service.restoreMatch(fx.target.id, contextOf(fx.lost, fx.target));
+});
+
+test('从未落库的候选也能被排除（旧实现直接 return ok:false，页面却提示成功）', () => {
+  const fx = candidateFixture();
+  if (store.getMatch(fx.target.id)) {
+    // 演示数据里这条恰好已落库，先清掉以复现「未落库」场景
+    store.removeMatch(fx.target.id);
+  }
+  assert.strictEqual(store.getMatch(fx.target.id), null, '前置条件：该候选尚未落库');
+
+  const noCtx = service.rejectMatch(fx.target.id, '测试');
+  assert.strictEqual(noCtx.ok, false, '缺少上下文时应明确失败，不能假装成功');
+
+  const withCtx = service.rejectMatch(fx.target.id, '测试', contextOf(fx.lost, fx.target));
+  assert.strictEqual(withCtx.ok, true, '带上下文应能补出记录并排除');
+  assert.ok(store.getMatch(fx.target.id), '排除后记录必须真的落库');
+
+  const after = service.candidatesForLost(fx.lost.id, { topK: 20, minScore: 0.3 }).views;
+  assert.ok(!after.some((v) => v.id === fx.target.id), '排除后列表里不应再有它');
+
+  service.restoreMatch(fx.target.id, contextOf(fx.lost, fx.target));
+});
+
+test('includeRejected 能取回已排除候选，并在视图上标出 rejected 状态', () => {
+  const fx = candidateFixture();
+  service.rejectMatch(fx.target.id, '测试排除', contextOf(fx.lost, fx.target));
+
+  const all = service.candidatesForLost(fx.lost.id, {
+    topK: 20, minScore: 0.3, includeRejected: true
+  }).views;
+  const found = all.find((v) => v.id === fx.target.id);
+  assert.ok(found, 'includeRejected 应能取回该候选');
+  assert.strictEqual(found.status, 'rejected', '状态应标记为 rejected');
+  assert.strictEqual(found.statusLabel, '已排除', '状态文案应是「已排除」');
+
+  service.restoreMatch(fx.target.id, contextOf(fx.lost, fx.target));
+});
+
+test('撤销排除把 status 与 userStatus 一起复位（否则下次同步又变回已排除）', () => {
+  const fx = candidateFixture();
+  service.rejectMatch(fx.target.id, '测试', contextOf(fx.lost, fx.target));
+  assert.strictEqual(store.getMatch(fx.target.id).userStatus, 'rejected');
+
+  const back = service.restoreMatch(fx.target.id, contextOf(fx.lost, fx.target));
+  assert.strictEqual(back.ok, true);
+  const m = store.getMatch(fx.target.id);
+  assert.strictEqual(m.status, 'new', 'status 应复位');
+  assert.strictEqual(m.userStatus, 'new', 'userStatus 必须一起复位');
+  assert.strictEqual(m.rejectReason, '', '排除原因应清空');
+
+  const list = service.candidatesForLost(fx.lost.id, { topK: 20, minScore: 0.3 }).views;
+  assert.ok(list.some((v) => v.id === fx.target.id), '撤销后应重新出现在候选列表里');
+});
+
+test('重复撤销给出明确失败原因，不静默成功', () => {
+  const fx = candidateFixture();
+  const r = service.restoreMatch(fx.target.id, contextOf(fx.lost, fx.target));
+  assert.strictEqual(r.ok, false);
+  assert.ok(/没有/.test(r.message), '应说明「该候选没有被排除」，实际：' + r.message);
+});
+
+/* ===================== 11. 核验期临时会话 ===================== */
+group('11. 核验期临时会话（认领双方商量线下交接）');
+
+const chat = require('../core/chat');
+
+test('会话状态随认领状态变化：answering 关闭、submitted/verified 开放、结束转只读', () => {
+  assert.strictEqual(chat.sessionState('answering').key, 'closed');
+  assert.strictEqual(chat.sessionState('submitted').key, 'open');
+  assert.strictEqual(chat.sessionState('verified').key, 'open');
+  assert.strictEqual(chat.sessionState('returned').key, 'readonly');
+  assert.strictEqual(chat.sessionState('rejected').key, 'readonly');
+  assert.strictEqual(chat.canSend('answering'), false, '未提交核验前不能发言');
+  assert.strictEqual(chat.canSend('submitted'), true);
+  assert.strictEqual(chat.canSend('returned'), false, '归还后转只读');
+});
+
+test('消息正文脱敏：手机号与社交账号被隐藏，时间地点保留', () => {
+  const r = chat.sanitize('明天 12:30 图书馆一楼，我手机 13812345678，微信 xunji2026');
+  assert.ok(r.redacted, '应标记为已脱敏');
+  assert.ok(r.text.indexOf('13812345678') < 0, '手机号不应出现在正文里');
+  assert.ok(r.text.indexOf('xunji2026') < 0, '社交账号不应出现在正文里');
+  assert.ok(r.text.indexOf('12:30') >= 0, '交接时间必须保留');
+  assert.ok(r.text.indexOf('图书馆一楼') >= 0, '交接地点必须保留');
+});
+
+test('空消息与超长消息被拒绝', () => {
+  assert.strictEqual(chat.createMessage({ text: '   ' }).ok, false);
+  assert.strictEqual(chat.createMessage({ text: 'x'.repeat(chat.MAX_LENGTH + 1) }).ok, false);
+  const ok = chat.createMessage({ text: '好的', senderId: 'u_me', senderRole: 'keeper' });
+  assert.strictEqual(ok.ok, true);
+  assert.strictEqual(ok.value.senderRole, 'keeper');
+});
+
+test('消息列表有上限，保留最新若干条', () => {
+  let list = [];
+  for (let i = 0; i < chat.MAX_MESSAGES + 20; i += 1) {
+    list = chat.appendMessage(list, { id: 'm' + i, text: 'x' });
+  }
+  assert.strictEqual(list.length, chat.MAX_MESSAGES, '应被截断到上限');
+  assert.strictEqual(list[list.length - 1].id, 'm' + (chat.MAX_MESSAGES + 19), '保留的应是最新消息');
+});
+
+/**
+ * 找一条「可以合法发起认领」的候选：失物主人是 ownerId、状态活跃、
+ * 且该失物当前没有进行中的认领单。
+ * （新增了两条守卫：一物一单、已找回/关闭不受理，测试必须先满足前置条件）
+ */
+function freshClaimTarget(ownerId) {
+  const ACTIVE = ['answering', 'submitted', 'verified'];
+  let out = null;
+  store.itemsOf('lost').some((l) => {
+    if (ownerId && l.userId !== ownerId) return false;
+    if (l.status === 'recovered' || l.status === 'closed') return false;
+    if (store.claimsOfLost(l.id).some((c) => ACTIVE.indexOf(c.status) >= 0)) return false;
+    const views = service.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+    const fresh = views.find((v) => !store.byMatch(v.id) && v.found.userId !== l.userId);
+    if (!fresh) return false;
+    out = { lost: l, view: fresh, foundUserId: fresh.found.userId };
+    return true;
+  });
+  return out;
+}
+
+/**
+ * 把演示数据恢复到干净状态。
+ *
+ * 为什么需要：新增的「一条失物只能有一张进行中的认领单」是正确约束，
+ * 但串联的测试会把演示数据里的候选陆续认领掉，后面的用例就无候选可用。
+ * 认领类用例自己重置一次，保证可重复运行、不受用例顺序影响。
+ */
+function resetSeed() {
+  store.reset(() => {});
+  seed.ensureSeed();
+}
+
+test('端到端：提交核验后双方可对话，会话外的人无权访问', () => {
+  resetSeed();
+  const fx = freshClaimTarget('u_me');
+  assert.ok(fx, '演示数据里应有可用的失物/拾物候选对');
+
+  const claim = service.startClaim(fx.view.id, { userId: 'u_me' });
+  assert.strictEqual(claim.ok, true, '发起认领应成功：' + claim.message);
+  const claimId = claim.claim.id;
+
+  // 未提交核验回答前，会话不开放
+  assert.strictEqual(service.postClaimMessage(claimId, { userId: fx.lost.userId, text: '在吗' }).ok, false);
+
+  const answers = claim.claim.questions.map(() => '杯底有一道大约三厘米的纵向划痕');
+  const submitted = service.submitClaim(claimId, answers, { userId: fx.lost.userId });
+  assert.strictEqual(submitted.ok, true);
+
+  const mine = service.postClaimMessage(claimId, { userId: fx.lost.userId, text: '明天中午12:30 图书馆一楼服务台可以吗' });
+  assert.strictEqual(mine.ok, true);
+  const theirs = service.postClaimMessage(claimId, { userId: fx.foundUserId, text: '可以，我带杯套一起过去' });
+  assert.strictEqual(theirs.ok, true);
+
+  const view = service.claimSessionView(claimId, { userId: fx.lost.userId });
+  assert.strictEqual(view.state, 'open');
+  assert.strictEqual(view.count, 2);
+  assert.strictEqual(view.myRole, 'claimant');
+  assert.strictEqual(view.counterpartLabel, '拾物者');
+  assert.ok(view.messages[0].mine, '自己发的消息应标记 mine');
+  assert.strictEqual(view.messages[0].senderName, '我');
+  assert.ok(view.messages[1].senderName && view.messages[1].senderName !== '我', '对方消息应显示昵称');
+
+  const outsider = service.claimSessionView(claimId, { userId: 'u_admin' });
+  assert.strictEqual(outsider.state, 'closed', '非双方无权查看会话');
+  assert.strictEqual(service.postClaimMessage(claimId, { userId: 'u_admin', text: '偷看' }).ok, false);
+});
+
+test('端到端：认领与核验的身份约束（离线实现与云端一致）', () => {
+  resetSeed();
+  // 「不能替别人发起认领」：找一条他人的失物
+  const other = store.itemsOf('lost').filter((l) =>
+    l.userId !== 'u_me' && l.status !== 'recovered' && l.status !== 'closed')[0];
+  assert.ok(other, '演示数据里应有他人的失物');
+  const otherViews = service.candidatesForLost(other.id, { topK: 20, minScore: 0.3 }).views;
+  assert.ok(otherViews.length, '该失物应有候选');
+
+  const denied = service.startClaim(otherViews[0].id, { userId: 'u_me' });
+  assert.strictEqual(denied.ok, false, '不应能替别人发起认领');
+  assert.ok(/只能为自己的失物/.test(denied.message), '应给出原因，实际：' + denied.message);
+
+  // 正路：自己的失物，离线模式也不受身份限制（纯本地演示不被锁死）
+  const fx = freshClaimTarget('u_me');
+  assert.ok(fx, '应有可用的候选对');
+
+  const offline = service.startClaim(fx.view.id);
+  assert.strictEqual(offline.ok, true, '离线模式应允许发起：' + offline.message);
+  const c = offline.claim;
+
+  // 提交核验：非认领者不可提交
+  const byOther = service.submitClaim(c.id, ['随便答'], { userId: 'u_zzz' });
+  assert.strictEqual(byOther.ok, false, '非认领者不应能提交核验回答');
+
+  // 确认：必须处于「待拾物者确认」状态
+  const beforeSubmit = service.confirmClaim(c.id, 'pass', '', { userId: c.keeperId });
+  assert.strictEqual(beforeSubmit.ok, false, '未提交核验不应能确认');
+
+  service.submitClaim(c.id, c.questions.map(() => '有一道三厘米长的划痕'), { userId: c.claimantId });
+
+  // 认领者（失主）不能替拾物者确认
+  const byClaimant = service.confirmClaim(c.id, 'pass', '', { userId: c.claimantId });
+  assert.strictEqual(byClaimant.ok, false, '认领者不应能替拾物者确认');
+  assert.ok(/只有拾物者本人/.test(byClaimant.message), '应给出权限原因，实际：' + byClaimant.message);
+
+  const ok = service.confirmClaim(c.id, 'pass', '', { userId: c.keeperId });
+  assert.strictEqual(ok.ok, true, '拾物者本人应能确认：' + ok.message);
+  assert.strictEqual(ok.claim.status, 'verified');
+
+  const again = service.confirmClaim(c.id, 'reject', '', { userId: c.keeperId });
+  assert.strictEqual(again.ok, false, '不能重复确认');
+  assert.ok(/不能重复确认/.test(again.message), '应给出状态原因，实际：' + again.message);
+  assert.strictEqual(store.getClaim(c.id).status, 'verified', '状态不应被改写');
+
+  // 归还：外人不可，双方之一可以
+  const outsider = service.completeReturn(c.id, { userId: 'u_zzz' });
+  assert.strictEqual(outsider.ok, false, '外人不应能完成归还');
+
+  const returned = service.completeReturn(c.id, { userId: c.keeperId });
+  assert.strictEqual(returned.ok, true, '双方之一应能完成归还：' + returned.message);
+  assert.strictEqual(returned.claim.status, 'returned');
+
+  // 同一失物不能再发起第二张认领单（已找回）
+  const afterReturn = service.startClaim(fx.view.id, { userId: 'u_me' });
+  assert.strictEqual(afterReturn.ok, false, '已找回的失物不应再受理认领');
+});
+
+test('同一条失物不能同时挂两张进行中的认领单（离线实现）', () => {
+  resetSeed();
+  const ACTIVE = ['answering', 'submitted', 'verified'];
+  let target = null;
+  store.itemsOf('lost').some((l) => {
+    if (l.status === 'recovered' || l.status === 'closed') return false;
+    if (store.claimsOfLost(l.id).some((c) => ACTIVE.indexOf(c.status) >= 0)) return false;
+    const views = service.candidatesForLost(l.id, { topK: 20, minScore: 0.3 }).views;
+    if (views.length < 2) return false;
+    target = { lost: l, first: views[0], second: views[1] };
+    return true;
+  });
+  assert.ok(target, '前置条件：应有候选数 ≥2 且无进行中认领的失物');
+
+  const first = service.startClaim(target.first.id);
+  assert.strictEqual(first.ok, true, '第一张应能发起：' + first.message);
+
+  const second = service.startClaim(target.second.id);
+  assert.strictEqual(second.ok, false, '第二张应被拒绝');
+  assert.ok(/进行中的认领单/.test(second.message), '应说明原因，实际：' + second.message);
+  assert.strictEqual(second.activeClaimId, first.claim.id, '应回传进行中的那张认领单 id');
+});
+
 /* ===================== 输出 ===================== */
 console.log('\n========================================');
 console.log('通过 ' + passed + ' 项，失败 ' + failed + ' 项');

@@ -13,6 +13,7 @@ const locations = require('./locations');
 const categorical = require('./categories');
 const colorUtil = require('./color');
 const domain = require('../core/domain');
+const chat = require('./chat');
 
 /* ===================== 状态机（方案 6.7） ===================== */
 
@@ -148,7 +149,7 @@ function matchView(match, options) {
  *   image/images, description, locationText, locationId, timeText/dateTime,
  *   privateFeatures: [string], userId, title
  */
-function publish(input) {
+function publish(input, options) {
   const data = input || {};
   const kind = data.kind === 'found' ? 'found' : 'lost';
   const now = Date.now();
@@ -203,7 +204,7 @@ function publish(input) {
     attributes.category = data.attributes.category;
   }
 
-  const item = {
+  const item = domain.buildItem({
     id: store.uid(kind === 'lost' ? 'lost' : 'found'),
     kind,
     userId: data.userId || 'u_me',
@@ -211,6 +212,9 @@ function publish(input) {
     image,
     images: data.images || (image ? [image] : []),
     description: data.description || '',
+    imageDescription: data.imageDescription || (data.aiResult && data.aiResult.description) || '',
+    attributesModel: data.attributesModel || (data.aiResult && data.aiResult.model) || 'local',
+    attributeConfidence: data.attributeConfidence || {},
     location,
     locationMatched,
     locationText: data.locationText || location.name,
@@ -221,18 +225,14 @@ function publish(input) {
     privateFeatures: (data.privateFeatures || []).filter(Boolean),
     publicDescription: data.publicDescription || data.description || '',
     status: kind === 'lost' ? 'searching' : 'available',
-    embeddings: {
-      image: image ? vlm.embed('image', image) : null,
-      text: vlm.embed('text', [data.description || '', categorical.nameOf(attributes.category), attributes.brand || '', attributes.main_color || ''].join(' '))
-    },
     identityId: data.identityId || '',
     createdAt: now,
     updatedAt: now,
     views: 0,
     matchCount: 0
-  };
+  });
 
-  store.insertItem(item);
+  store.insertItem(item, options);
 
   // 4) 立即执行一次增量匹配（对应上线后“后台持续匹配”）
   const searchResult = kind === 'lost' ? runMatchForLost(item) : runMatchForFound(item);
@@ -267,7 +267,7 @@ function runMatchForLost(lostItem, options) {
     if (r.score < 0.32) return; // 低于此分数不落库，避免候选列表噪音
     const existed = store.matchesOfLost(lostItem.id).some((m) => m.foundId === r.foundItem.id);
     const scored = {
-      id: 'match_' + lostItem.id + '_' + r.foundItem.id,
+      id: 'match_' + lostItem.id + '__' + r.foundItem.id,
       lostId: lostItem.id,
       foundId: r.foundItem.id,
       score: Number(r.score.toFixed(4)),
@@ -342,7 +342,7 @@ function runMatchForFound(foundItem, options) {
     if (r.score < 0.32) return;
     const existed = store.matchesOfFound(foundItem.id).some((m) => m.lostId === r.lostItem.id);
     const scored = {
-      id: 'match_' + r.lostItem.id + '_' + foundItem.id,
+      id: 'match_' + r.lostItem.id + '__' + foundItem.id,
       lostId: r.lostItem.id,
       foundId: foundItem.id,
       score: Number(r.score.toFixed(4)),
@@ -403,37 +403,56 @@ function incrementalMatch() {
   return { created, losts: losts.length, founds: founds.length };
 }
 
-/** 查询某条失物的候选列表（读时重算，保证分数与当前权重一致） */
+/**
+ * 查询某条失物的候选列表（读时重算，保证分数与当前权重一致）
+ *
+ * options.includeRejected = true 时保留用户已排除的候选（用于「已排除」筛选与撤销）；
+ * 默认一律剔除——这正是「点了排除，列表里那条还在」这个问题的根因：
+ * 打分引擎按分数重算候选，与 match 的交互状态（rejected）无关，
+ * 所以判断必须放在这一层，页面侧的过滤救不回来。
+ */
 function candidatesForLost(lostId, options) {
   const opts = options || {};
-  const cacheKey = 'lost:' + lostId + ':' + (opts.topK || 20) + ':' + (opts.minScore || 0.3);
+  const cacheKey = 'lost:' + lostId + ':' + (opts.topK || 20) + ':' + (opts.minScore || 0.3) +
+    (opts.includeRejected ? ':withRejected' : '');
   const cached = rankCacheGet(cacheKey);
   if (cached) return cached;
 
   const lost = store.getItem(lostId);
   if (!lost) return { results: [], views: [] };
-  const founds = store.itemsOf('found');
+  /**
+   * 已闭环的失物不再产出候选：
+   *   物品已找回后再进匹配页还看到一堆「可能匹配」，既没意义也容易误操作。
+   */
+  if (lost.status === 'recovered' || lost.status === 'closed') {
+    return { results: [], views: [], candidates: 0 };
+  }
+  const founds = store.itemsOf('found').filter((f) => f.status !== 'returned' && f.status !== 'closed');
   const ranked = matcher.rankCandidates(lost, founds, { topK: opts.topK || 20 });
 
   const views = ranked.results
     .filter((r) => r.score >= (opts.minScore || 0.3))
+    // 同 id 自匹配必须剔除：演示数据里存在 kind 写错、被放进 lostItems 的 found_* 记录，
+    // 它会被当成「自己的候选」拿到接近 100% 的分，属于明显的展示事故。
+    .filter((r) => r.foundItem.id !== lostId)
     .map((r) => {
       const match = store.matchesOfLost(lostId).find((m) => m.foundId === r.foundItem.id);
       const merged = Object.assign({}, match || {
-        id: 'match_' + lostId + '_' + r.foundItem.id,
+        id: 'match_' + lostId + '__' + r.foundItem.id,
         lostId,
         foundId: r.foundItem.id,
         status: 'new',
         userStatus: 'new',
         createdAt: Date.now()
       }, r, {
-        id: match ? match.id : 'match_' + lostId + '_' + r.foundItem.id,
+        id: match ? match.id : 'match_' + lostId + '__' + r.foundItem.id,
         status: match ? match.status : 'new',
         userStatus: match ? (match.userStatus || 'new') : 'new'
       });
       return matchView(merged, { from: 'lost' });
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((v) => opts.includeRejected || v.status !== 'rejected');
 
   return rankCacheSet(cacheKey, { results: ranked.results, views, candidates: ranked.candidates, elapsed: ranked.elapsed });
 }
@@ -441,33 +460,41 @@ function candidatesForLost(lostId, options) {
 /** 查询某条拾物的潜在失主 */
 function candidatesForFound(foundId, options) {
   const opts = options || {};
-  const cacheKey = 'found:' + foundId + ':' + (opts.topK || 20) + ':' + (opts.minScore || 0.3);
+  const cacheKey = 'found:' + foundId + ':' + (opts.topK || 20) + ':' + (opts.minScore || 0.3) +
+    (opts.includeRejected ? ':withRejected' : '');
   const cached = rankCacheGet(cacheKey);
   if (cached) return cached;
 
   const found = store.getItem(foundId);
   if (!found) return { results: [], views: [] };
-  const losts = store.itemsOf('lost');
+  // 已归还 / 已关闭的拾物不再产出候选（理由同 candidatesForLost）
+  if (found.status === 'returned' || found.status === 'closed') {
+    return { results: [], views: [], candidates: 0 };
+  }
+  const losts = store.itemsOf('lost').filter((l) => l.status !== 'recovered' && l.status !== 'closed');
   const ranked = matcher.rankOwners(found, losts, { topK: opts.topK || 20 });
   const views = ranked.results
     .filter((r) => r.score >= (opts.minScore || 0.3))
+    // 对称地剔除自匹配（同一条记录不可能既是失物又是拾物候选）
+    .filter((r) => r.lostItem.id !== foundId)
     .map((r) => {
       const match = store.matchesOfFound(foundId).find((m) => m.lostId === r.lostItem.id);
       const merged = Object.assign({}, match || {
-        id: 'match_' + r.lostItem.id + '_' + foundId,
+        id: 'match_' + r.lostItem.id + '__' + foundId,
         lostId: r.lostItem.id,
         foundId,
         status: 'new',
         userStatus: 'new',
         createdAt: Date.now()
       }, r, {
-        id: match ? match.id : 'match_' + r.lostItem.id + '_' + foundId,
+        id: match ? match.id : 'match_' + r.lostItem.id + '__' + foundId,
         status: match ? match.status : 'new',
         userStatus: match ? (match.userStatus || 'new') : 'new'
       });
       return matchView(merged, { from: 'found' });
     })
-    .filter(Boolean);
+    .filter(Boolean)
+    .filter((v) => opts.includeRejected || v.status !== 'rejected');
   return rankCacheSet(cacheKey, { results: ranked.results, views, candidates: ranked.candidates });
 }
 
@@ -535,7 +562,7 @@ function compareDetail(matchId, options) {
     if (!lost || !found) return null;
     const detail = matcher.scorePair(lost, found);
     const pseudo = {
-      id: 'match_' + opts.lostId + '_' + opts.foundId,
+      id: 'match_' + opts.lostId + '__' + opts.foundId,
       lostId: opts.lostId,
       foundId: opts.foundId,
       status: 'new',
@@ -658,20 +685,109 @@ function verifyAnswer(answer, feature) {
   return { score, reason, keywords: hitFeatureKw };
 }
 
+/**
+ * 解析候选的 matchId（本地镜像版，与云函数端 resolveMatch 同源）。
+ *
+ * ⚠ 真实缺陷：候选列表是读时重算的，大多数候选从来没有落过库，
+ *   ID 是按 `match_<lostId>__<foundId>` 约定现造的合成 id。
+ *   旧实现直接 `store.getMatch(matchId)`，拿不到就回「候选不存在」——
+ *   「从候选卡片直接点发起认领」这条路径根本走不通。
+ *
+ * ⚠ 物品 id 里本来就可能含下划线（`found_cup_01`、`item_mv0wosyq_1rl`），
+ *   所以合成 id 用 `__`（双下划线）分隔；同时保留对旧单下划线格式的回溯兼容。
+ */
+function resolveMatch(matchId) {
+  const existed = store.getMatch(matchId);
+  if (existed) return existed;
+  const id = String(matchId || '');
+  const PREFIX = 'match_';
+  if (id.indexOf(PREFIX) !== 0) return null;
+
+  const body = id.slice(PREFIX.length);
+  const cuts = [];
+  const delim = body.indexOf('__');
+  if (delim > 0) cuts.push(delim);
+  for (let i = 1; i < body.length - 1; i += 1) {
+    if (body[i] === '_' && cuts.indexOf(i) < 0) cuts.push(i);
+  }
+
+  for (let k = 0; k < cuts.length; k += 1) {
+    const i = cuts[k];
+    const lostId = body.slice(0, i);
+    const foundId = body.slice(i + 1).replace(/^_/, '');
+    if (!lostId || !foundId) continue;
+    const lost = store.getItem(lostId);
+    const found = store.getItem(foundId);
+    if (!lost || !found || lost.kind !== 'lost' || found.kind !== 'found') continue;
+    const rec = store.upsertMatch({
+      id: matchId,
+      lostId,
+      foundId,
+      status: 'new',
+      userStatus: 'new',
+      createdAt: Date.now()
+    });
+    if (!rec) return null;
+    /**
+     * ⚠ store.upsertMatch 按 (lostId, foundId) 去重：若这一对已有记录，
+     *   它会沿用原有记录的 id 并丢掉传入 id。调用方若继续用「传入的 matchId」
+     *   去 updateMatch / claimByMatch 就会找不到东西。
+     *   这里把 id 归一到调用方使用的约定，并迁移已挂在旧 id 上的认领单，
+     *   保证 resolveMatch(x).id === x。
+     */
+    if (rec.id !== matchId) {
+      // 走显式的改名路径（本地 updateMatch 允许改 id，但保持两端同一套语义）
+      store.renameMatchId(rec.id, matchId);
+      rec.id = matchId;
+    }
+    return rec;
+  }
+  return null;
+}
+
 /** 发起认领 */
-function startClaim(matchId) {
-  const match = store.getMatch(matchId);
+function startClaim(matchId, options) {
+  const match = resolveMatch(matchId);
   if (!match) return { ok: false, message: '候选不存在' };
   const found = store.getItem(match.foundId);
   const lost = store.getItem(match.lostId);
   if (!found || !lost) return { ok: false, message: '记录不存在' };
   if (match.status === 'rejected') return { ok: false, message: '该候选已被排除' };
 
-  let claim = store.byMatch(matchId);
+  /*
+   * 三道校验与云函数端保持完全一致（core 是唯一事实来源，行为不能两端漂移）：
+   *   1. 只有失物主人能为自己的失物发起认领；
+   *   2. 已找回 / 已关闭的失物不再接受新认领；
+   *   3. 同一条失物只允许一张进行中的认领单。
+   * 离线模式（未传 userId）跳过第 1 条，保证纯本地演示的脚本调用不受影响。
+   */
+  const userId = (options && options.userId) || '';
+  if (userId && lost.userId !== userId) {
+    return { ok: false, message: '只能为自己的失物发起认领' };
+  }
+  if (lost.status === 'recovered' || lost.status === 'closed') {
+    return { ok: false, message: '该失物已找回或已关闭，不再接受新的认领' };
+  }
+  const ACTIVE = ['answering', 'submitted', 'verified'];
+  // 与云端一致：用归一后的 match.id，避免「查一个 id、写另一个 id」
+  const keyMatchId = match.id || matchId;
+  const existingClaim = store.byMatch(keyMatchId);
+  if (!existingClaim) {
+    const active = store.claimsOfLost(match.lostId).filter((c) => ACTIVE.indexOf(c.status) >= 0);
+    if (active.length) {
+      return {
+        ok: false,
+        message: '该失物已有一张进行中的认领单（' + active[0].id + '），请先完成或结束它',
+        activeClaimId: active[0].id
+      };
+    }
+  }
+
+  let claim = existingClaim;
   if (!claim) {
     claim = store.insertClaim({
       id: store.uid('claim'),
-      matchId,
+      matchId: keyMatchId,
       lostId: match.lostId,
       foundId: match.foundId,
       claimantId: lost.userId,
@@ -692,10 +808,24 @@ function startClaim(matchId) {
   return { ok: true, claim, claimView: claimView(claim) };
 }
 
-/** 提交核验回答 */
-function submitClaim(claimId, answers) {
+/**
+ * 提交核验回答。
+ *
+ * ⚠ 必须校验当前状态：`startClaim` 对同一条候选是幂等的（已存在就直接返回旧认领单），
+ *   所以「已经归还 / 已拒绝」的历史认领单也可能被再次拿到。旧实现不校验状态，
+ *   直接把 status 写回 submitted，会让一条已闭环的认领单被重新激活。
+ */
+function submitClaim(claimId, answers, options) {
   const claim = store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+  const userId = (options && options.userId) || '';
+  if (userId && claim.claimantId !== userId) {
+    return { ok: false, message: '只有发起认领的失主可以提交核验回答' };
+  }
+  if (claim.status !== 'answering') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，不能重复提交核验回答' };
+  }
   const list = claim.questions.map((q, idx) => {
     const answer = (answers && answers[idx]) || '';
     const result = verifyAnswer(answer, q.feature);
@@ -734,10 +864,26 @@ function submitClaim(claimId, answers) {
   return { ok: true, claim, claimView: claimView(claim) };
 }
 
-/** 拾物者确认 / 拒绝 */
-function confirmClaim(claimId, action, remark) {
+/**
+ * 拾物者确认 / 拒绝。
+ *
+ * 与云函数端一致的两道校验：只有拾物者本人能确认，且只有「待拾物者确认」
+ * 状态可以确认（否则已通过的认领单会被再改成未通过）。
+ */
+function confirmClaim(claimId, action, remark, options) {
   const claim = store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+  const userId = (options && options.userId) || '';
+  if (userId && claim.keeperId !== userId) {
+    return { ok: false, message: '只有拾物者本人可以确认或拒绝该认领' };
+  }
+  if (claim.status !== 'submitted') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，不能重复确认' };
+  }
+  if (action !== 'pass' && action !== 'reject') {
+    return { ok: false, message: 'action 只能是 pass 或 reject' };
+  }
   const isPass = action === 'pass';
   const lost = store.getItem(claim.lostId);
   const found = store.getItem(claim.foundId);
@@ -789,9 +935,17 @@ function confirmClaim(claimId, action, remark) {
 }
 
 /** 完成归还（状态闭环） */
-function completeReturn(claimId) {
+function completeReturn(claimId, options) {
   const claim = store.getClaim(claimId);
   if (!claim) return { ok: false, message: '认领单不存在' };
+  const userId = (options && options.userId) || '';
+  if (userId && claim.claimantId !== userId && claim.keeperId !== userId) {
+    return { ok: false, message: '只有本次认领的双方可以确认归还' };
+  }
+  if (claim.status !== 'verified') {
+    const st = statusInfo(CLAIM_STATUS, claim.status);
+    return { ok: false, message: '该认领单当前状态为「' + st.label + '」，需先完成核验确认' };
+  }
   store.updateClaim(claimId, { status: 'returned', returnedAt: Date.now() });
   store.updateMatch(claim.matchId, { status: 'returned' });
   const lost = store.getItem(claim.lostId);
@@ -821,10 +975,37 @@ function completeReturn(claimId) {
   return { ok: true, claim, claimView: claimView(claim) };
 }
 
-/** 排除候选（弱负样本） */
-function rejectMatch(matchId, reason) {
-  const match = store.getMatch(matchId);
-  if (!match) return { ok: false };
+/**
+ * 排除候选（弱负样本）
+ *
+ * ⚠ 真实缺陷（用户反馈「点了排除，只有一个提示，界面没有任何变化」）：
+ *   候选列表是**读时重算**的——打分引擎按分数排名，再与 store 里的 match
+ *   交互状态合并。绝大多数候选从来没有落库过，`store.getMatch(syntheticId)`
+ *   返回 null，于是旧实现里 `rejectMatch` 直接 `return { ok: false }`：
+ *   页面照样弹「已排除」，但什么都没有写下去，列表自然一动不动。
+ *
+ *   修法：匹配记录不存在时按候选列表的命名约定补一条（status='rejected'），
+ *   让排除动作真正落库、下次同步也还在。
+ */
+function rejectMatch(matchId, reason, context) {
+  let match = store.getMatch(matchId);
+  if (!match) {
+    const ctx = context || {};
+    if (!ctx.lostId || !ctx.foundId) {
+      return { ok: false, message: '候选尚未落库，缺少记录信息，无法排除' };
+    }
+    match = {
+      id: matchId,
+      lostId: ctx.lostId,
+      foundId: ctx.foundId,
+      score: ctx.score || 0,
+      threshold: ctx.threshold || 0,
+      passed: !!ctx.passed,
+      createdAt: Date.now(),
+      userStatus: 'new'
+    };
+    store.upsertMatch(match);
+  }
   store.updateMatch(matchId, { status: 'rejected', userStatus: 'rejected', rejectReason: reason || '' });
   store.insertFeedback({
     id: store.uid('fb'),
@@ -838,6 +1019,139 @@ function rejectMatch(matchId, reason) {
   });
   store.persist();
   return { ok: true };
+}
+
+/**
+ * 撤销排除（把候选放回列表）。
+ *
+ * 排除是把 match 的状态写成 rejected；撤销必须把状态复位成 new，
+ * 并且**同时复位 userStatus**——否则列表侧只认 userStatus、复位不彻底，
+ * 保存一次快照后又会变回「已排除」。
+ */
+function restoreMatch(matchId, context) {
+  const match = store.getMatch(matchId);
+  if (!match) {
+    // 与 rejectMatch 对称：没落库的合成候选也要能「撤销」，否则撤销是死路
+    const ctx = context || {};
+    if (!ctx.lostId || !ctx.foundId) return { ok: false, message: '候选不存在' };
+    store.upsertMatch({
+      id: matchId,
+      lostId: ctx.lostId,
+      foundId: ctx.foundId,
+      status: 'new',
+      userStatus: 'new',
+      createdAt: Date.now()
+    });
+    store.persist();
+    return { ok: true };
+  }
+  if (match.status !== 'rejected' && match.userStatus !== 'rejected') {
+    return { ok: false, message: '该候选没有被排除' };
+  }
+  store.updateMatch(matchId, {
+    status: 'new',
+    userStatus: 'new',
+    rejectReason: '',
+    viewedAt: match.viewedAt || 0
+  });
+  store.persist();
+  return { ok: true };
+}
+
+/* ===================== 核验期临时会话 =====================
+ *
+ * 认领单进入「待拾物者确认」后，双方需要商量线下交接；此前只有一个
+ * 「复制我的核验回答」，实际没法对话。
+ *
+ * 这里刻意做得很克制：
+ *   · 消息直接挂在认领单文档上（claim.messages），不新增集合、
+ *     不进检索索引，认领单结束即失去意义；
+ *   · 只有 claimantId / keeperId 两人能读能写；
+ *   · answering 阶段关闭（防止认领者先用会话套取隐藏特征）；
+ *   · 正文里的手机号 / 社交账号在写入前脱敏。
+ */
+
+/** 当前用户在这条认领单里的角色 */
+function roleOf(claim, userId) {
+  if (!claim) return '';
+  if (claim.claimantId === userId) return 'claimant';
+  if (claim.keeperId === userId) return 'keeper';
+  return '';
+}
+
+/** 会话是否对当前用户可见（只对认领双方开放） */
+function canAccessSession(claim, userId) {
+  return !!roleOf(claim, userId);
+}
+
+/** 会话视图（页面直接渲染） */
+function claimSessionView(claimId, options) {
+  const opts = options || {};
+  const claim = store.getClaim(claimId);
+  if (!claim) return null;
+  const userId = opts.userId || '';
+  if (!canAccessSession(claim, userId)) {
+    return {
+      state: 'closed',
+      stateLabel: '无权访问',
+      stateDesc: '只有本次认领的失主与拾物者可以查看会话',
+      canSend: false,
+      messages: [],
+      hasMessages: false,
+      count: 0
+    };
+  }
+  return chat.sessionView(claim, {
+    userId,
+    nameOf: (id) => store.user(id).nickName
+  });
+}
+
+/**
+ * 发送一条会话消息。
+ * @param {string} claimId
+ * @param {{userId:string, text:string}} input
+ */
+function postClaimMessage(claimId, input) {
+  const data = input || {};
+  const userId = data.userId || '';
+  const claim = store.getClaim(claimId);
+  if (!claim) return { ok: false, message: '认领单不存在' };
+
+  const role = roleOf(claim, userId);
+  if (!role) return { ok: false, message: '只有本次认领的双方可以发送消息' };
+  if (!chat.canSend(claim.status)) {
+    const st = chat.sessionState(claim.status);
+    return { ok: false, message: st.key === 'closed' ? '提交核验回答后才能开启会话' : '本次认领已结束，会话不再接受新消息' };
+  }
+
+  const created = chat.createMessage({
+    claimId,
+    senderId: userId,
+    senderRole: role,
+    text: data.text,
+    uid: store.uid
+  });
+  if (!created.ok) return created;
+
+  const messages = chat.appendMessage(claim.messages, created.value);
+  store.updateClaim(claimId, { messages });
+
+  // 通知对方：他不用一直盯着页面刷新
+  const counterpartId = role === 'keeper' ? claim.claimantId : claim.keeperId;
+  store.insertNotification({
+    id: store.uid('ntf'),
+    userId: counterpartId,
+    type: 'claim_message',
+    matchId: claim.matchId,
+    title: '认领会话有新消息',
+    body: '对方在核验会话里留言：' + created.value.text.slice(0, 40),
+    read: false,
+    createdAt: Date.now()
+  });
+
+  store.persist();
+  return { ok: true, message: created.value, session: claimSessionView(claimId, { userId }) };
 }
 
 function claimView(claim) {
@@ -867,12 +1181,61 @@ function claimView(claim) {
     createdText: timeUtil.fromNow(claim.createdAt),
     canAnswer: claim.status === 'answering',
     canConfirm: claim.status === 'submitted',
-    privateFeatures: (found && found.privateFeatures) || []
+    privateFeatures: (found && found.privateFeatures) || [],
+    /* 临时会话摘要：列表页据此显示「N 条消息」，详情页再取完整会话 */
+    messageCount: (claim.messages || []).length,
+    sessionState: chat.sessionState(claim.status).key
   };
 }
 
 function claimDetail(claimId) {
   return claimView(store.getClaim(claimId));
+}
+
+/**
+ * 读取认领详情（镜像优先，缺失时回源服务端）。
+ *
+ * ⚠ 真实缺陷（用户反馈「为什么会有认领单不存在」+「数据更新矛盾」）：
+ *   页面读的是**本地镜像**（store.claimDetail → store.getClaim），
+ *   而云端快照里的 claims 来自 `claim.mine`，是**按当前身份过滤过的**
+ *   （只含 claimantId / keeperId 等于自己的单子）。
+ *   于是只要出现下面任一情况，镜像里就没有这张认领单：
+ *     · 演示时切换了身份（切到拾物者去看待确认的认领）；
+ *     · 换了一台设备 / 清了缓存后由对方先发起认领；
+ *     · 快照拉取失败，停在旧镜像上。
+ *   此时云端明明有这张单，界面却弹「认领单不存在」——
+ *   用户看到的就是「数据对不上」。
+ *
+ * 修法：镜像里没有就回源 `claim.get`（服务端有双方校验），
+ * 拿到后写回镜像，让后续的会话/对比等读取路径保持一致。
+ *
+ * @returns {Promise<{claim:object|null, forbidden:boolean, error:string}>}
+ */
+async function claimDetailAsync(claimId) {
+  const cached = claimDetail(claimId);
+  if (cached) return { claim: cached, forbidden: false, error: '' };
+
+  if (!claimId) return { claim: null, forbidden: false, error: '缺少 claimId' };
+  if (!cloudOn()) return { claim: null, forbidden: false, error: '本机没有这张认领单' };
+
+  try {
+    const api = require('./api');
+    const data = await api.callApi('claim.get', { claimId });
+    const entity = data && data.claim;
+    if (!entity) return { claim: null, forbidden: false, error: '认领单不存在' };
+
+    // 回写镜像：保持与快照一致的实体形状，后续读取才能命中
+    if (!store.getClaim(claimId)) store.insertClaim(entity);
+    else store.updateClaim(claimId, entity);
+    store.persist({ silent: true });
+
+    return { claim: claimDetail(claimId), forbidden: false, error: '' };
+  } catch (e) {
+    const code = e && e.code;
+    const message = (e && e.message) || '读取认领单失败';
+    // 服务端的 FORBIDDEN 是「不是我」而不是「不存在」，界面要分开提示
+    return { claim: null, forbidden: code === 'FORBIDDEN' || /只有本次认领/.test(message), error: message };
+  }
 }
 
 function claimOfMatch(matchId) {
@@ -1136,9 +1499,9 @@ function cloudOn() {
 }
 
 /** 从云端刷新镜像（写操作后调用） */
-async function syncFromCloud() {
+async function syncFromCloud(options) {
   if (!cloudOn()) return false;
-  return store.refreshFromCloud();
+  return store.refreshFromCloud(options || { force: true });
 }
 
 /**
@@ -1146,13 +1509,32 @@ async function syncFromCloud() {
  * @returns {Promise<{item, matchCount, locationMatched, auto, mode}>}
  */
 async function publishAsync(payload) {
+  let prepared = Object.assign({}, payload);
   if (cloudOn()) {
     try {
       const api = require('./api');
+      const images = (prepared.images && prepared.images.length ? prepared.images : prepared.image ? [prepared.image] : []).slice();
+      prepared.images = images;
+      // 临时路径只属于当前设备；云端记录必须引用已上传的照片。
+      for (let i = 0; i < images.length; i += 1) {
+        const source = images[i];
+        if (!source || /^(demo:|cloud:|https?:)/.test(source)) continue;
+        const suffix = (source.match(/\.(png|jpe?g|gif|webp)(?:\?|$)/i) || [])[1] || 'jpg';
+        const upload = await wx.cloud.uploadFile({ filePath: source,
+          cloudPath: 'items/' + Date.now() + '-' + i + '-' + Math.random().toString(36).slice(2, 10) + '.' + suffix });
+        if (!upload || !upload.fileID) throw new Error('照片上传未完成');
+        images[i] = upload.fileID;
+        prepared.image = images[0] || '';
+      }
+      prepared.images = images;
+      prepared.image = images[0] || '';
       // 已经有 AI 结果的（页面调用过 xj-ai）直接带上，避免云端重复调用模型
-      const data = await api.callApi('item.publish', payload);
-      await syncFromCloud();
+      const data = await api.callApi('item.publish', prepared);
+      // 已发布成功后，刷新镜像失败不能再次执行本地发布。
+      try { await syncFromCloud(); }
+      catch (e) { console.warn('[寻迹] 发布成功，镜像刷新暂不可用：', e.message); }
       const item = store.getItem(data.item && data.item.id) || data.item;
+      if (item && !store.getItem(item.id)) { item._fromCloud = true; store.insertItem(item, { localOnly: true }); store.persist(); }
       return {
         mode: 'cloud',
         item,
@@ -1160,7 +1542,7 @@ async function publishAsync(payload) {
         auto: data.auto,
         matchCount: data.matchCount || 0,
         top: data.top,
-        locationMatched: true
+        locationMatched: item && item.locationMatched !== false
       };
     } catch (e) {
       console.error('[寻迹] 云端发布失败，降级本地发布：', e.message);
@@ -1169,12 +1551,25 @@ async function publishAsync(payload) {
       }
     }
   }
-  const local = publish(payload);
+  const local = publish(prepared, { localOnly: true });
   return Object.assign({ mode: 'local' }, local);
+}
+
+/**
+ * 当前用户身份（用于云调用的服务端授权）。
+ * 读 core/identity 而不是 getApp()，这样 service 层也能拿到最新身份。
+ */
+function currentUserId() {
+  try {
+    return require('../core/identity').currentUserId();
+  } catch (e) {
+    return '';
+  }
 }
 
 /** 发起认领（云端优先） */
 async function startClaimAsync(matchId) {
+  const userId = currentUserId();
   if (cloudOn()) {
     try {
       const api = require('./api');
@@ -1185,12 +1580,13 @@ async function startClaimAsync(matchId) {
       console.error('[寻迹] 云端认领失败，降级本地：', e.message);
     }
   }
-  const local = startClaim(matchId);
+  const local = startClaim(matchId, { userId });
   return Object.assign({ mode: 'local' }, local);
 }
 
 /** 提交核验回答（云端优先） */
 async function submitClaimAsync(claimId, answers) {
+  const userId = currentUserId();
   if (cloudOn()) {
     try {
       const api = require('./api');
@@ -1201,12 +1597,13 @@ async function submitClaimAsync(claimId, answers) {
       console.error('[寻迹] 云端提交核验失败，降级本地：', e.message);
     }
   }
-  const local = submitClaim(claimId, answers);
+  const local = submitClaim(claimId, answers, { userId });
   return Object.assign({ mode: 'local' }, local);
 }
 
 /** 拾物者确认 / 拒绝（云端优先） */
 async function confirmClaimAsync(claimId, action, remark) {
+  const userId = currentUserId();
   if (cloudOn()) {
     try {
       const api = require('./api');
@@ -1217,12 +1614,13 @@ async function confirmClaimAsync(claimId, action, remark) {
       console.error('[寻迹] 云端确认失败，降级本地：', e.message);
     }
   }
-  const local = confirmClaim(claimId, action, remark);
+  const local = confirmClaim(claimId, action, remark, { userId });
   return Object.assign({ mode: 'local' }, local);
 }
 
 /** 完成归还（云端优先） */
 async function completeReturnAsync(claimId) {
+  const userId = currentUserId();
   if (cloudOn()) {
     try {
       const api = require('./api');
@@ -1233,23 +1631,75 @@ async function completeReturnAsync(claimId) {
       console.error('[寻迹] 云端归还失败，降级本地：', e.message);
     }
   }
-  const local = completeReturn(claimId);
+  const local = completeReturn(claimId, { userId });
   return Object.assign({ mode: 'local' }, local);
 }
 
 /** 排除候选（云端优先） */
-async function rejectMatchAsync(matchId, reason) {
+async function rejectMatchAsync(matchId, reason, context) {
+  const ctx = context || {};
   if (cloudOn()) {
     try {
       const api = require('./api');
-      await api.callApi('match.reject', { matchId, reason });
+      await api.callApi('match.reject', {
+        matchId,
+        reason,
+        lostId: ctx.lostId,
+        foundId: ctx.foundId,
+        score: ctx.score,
+        threshold: ctx.threshold,
+        passed: ctx.passed
+      });
       await syncFromCloud();
       return { mode: 'cloud', ok: true };
     } catch (e) {
       console.error('[寻迹] 云端排除失败，降级本地：', e.message);
     }
   }
-  const local = rejectMatch(matchId, reason);
+  const local = rejectMatch(matchId, reason, ctx);
+  return Object.assign({ mode: 'local' }, local);
+}
+
+/** 撤销排除（云端优先） */
+async function restoreMatchAsync(matchId, context) {
+  const ctx = context || {};
+  if (cloudOn()) {
+    try {
+      const api = require('./api');
+      await api.callApi('match.restore', { matchId, lostId: ctx.lostId, foundId: ctx.foundId });
+      await syncFromCloud();
+      return { mode: 'cloud', ok: true };
+    } catch (e) {
+      console.error('[寻迹] 云端撤销排除失败，降级本地：', e.message);
+    }
+  }
+  const local = restoreMatch(matchId, ctx);
+  return Object.assign({ mode: 'local' }, local);
+}
+
+/**
+ * 发送核验期临时会话消息（云端优先）。
+ *
+ * 云函数不可用时退回本地写入，保证离线演示里会话依然能用；
+ * 但会明确回传 mode，页面可以据此提示「仅本机可见」。
+ */
+async function postClaimMessageAsync(claimId, input) {
+  const data = input || {};
+  if (cloudOn()) {
+    try {
+      const api = require('./api');
+      const r = await api.callApi('claim.message', {
+        claimId,
+        userId: data.userId,
+        text: data.text
+      });
+      await syncFromCloud();
+      return { mode: 'cloud', ok: true, message: r && r.message, session: r && r.session };
+    } catch (e) {
+      console.error('[寻迹] 云端发送消息失败，降级本地：', e.message);
+    }
+  }
+  const local = postClaimMessage(claimId, data);
   return Object.assign({ mode: 'local' }, local);
 }
 
@@ -1313,6 +1763,10 @@ module.exports = {
   confirmClaimAsync,
   completeReturnAsync,
   rejectMatchAsync,
+  restoreMatchAsync,
+  postClaimMessageAsync,
+  claimSessionView,
+  postClaimMessage,
   rerunMatchAsync,
   bootstrap,
   syncFromCloud,
@@ -1331,7 +1785,9 @@ module.exports = {
   confirmClaim,
   completeReturn,
   rejectMatch,
+  restoreMatch,
   claimDetail,
+  claimDetailAsync,
   claimOfMatch,
   stats,
   categoryDistribution,

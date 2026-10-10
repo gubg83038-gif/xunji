@@ -170,17 +170,21 @@ SYNONYMS.forEach((group, gi) => {
   group.forEach((word) => { CANON[word] = 'C' + gi; });
 });
 
-const TOKEN_CACHE = {};
+const TOKEN_CACHE = new Map();
 const TOKEN_CACHE_MAX = 800;
 
 function tokenize(text) {
   const key = String(text || '');
-  if (TOKEN_CACHE[key]) return TOKEN_CACHE[key];
+  if (TOKEN_CACHE.has(key)) {
+    const cached = TOKEN_CACHE.get(key);
+    TOKEN_CACHE.delete(key);
+    TOKEN_CACHE.set(key, cached);
+    return cached;
+  }
   const result = tokenizeUncached(key);
   // 演示数据量不大，做一个带上限的简单缓存，避免同一文本被反复切词
-  const keys = Object.keys(TOKEN_CACHE);
-  if (keys.length >= TOKEN_CACHE_MAX) delete TOKEN_CACHE[keys[0]];
-  TOKEN_CACHE[key] = result;
+  if (TOKEN_CACHE.size >= TOKEN_CACHE_MAX) TOKEN_CACHE.delete(TOKEN_CACHE.keys().next().value);
+  TOKEN_CACHE.set(key, result);
   return result;
 }
 

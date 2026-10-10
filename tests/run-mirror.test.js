@@ -24,12 +24,25 @@ Module._resolveFilename = function (r, p, i, o) {
 
 const api = require(path.join(ROOT, 'cloudfunctions', 'xj-api', 'index.js'));
 
-/** 直接调云函数 handler，模拟 wx.cloud.callFunction */
+/**
+ * 直接调云函数 handler，模拟 wx.cloud.callFunction。
+ *
+ * 注意 userId 要放进 **event 顶层**——那才是云函数认定的调用方身份
+ * （对应客户端 utils/api.js 的 demoUserId 信封）。放进 payload 的 userId
+ * 只是读数据用的 persona，不参与隐私裁剪。
+ */
 function callCloud(action, payload, userId) {
-  return api.main({ action, payload }, { userId: userId || 'u_me' });
+  return api.main({ action, payload, userId: userId || 'u_me' });
 }
 
-/* 小程序环境替身：wx.cloud.callFunction 转发到上面的 handler */
+/**
+ * 小程序环境替身：wx.cloud.callFunction 转发到上面的 handler。
+ *
+ * ⚠ 转发时必须把客户端构造的**身份信封**（data.demoUserId）如实传下去。
+ *   早期替身写死 'u_me'，于是「客户端有没有带身份」这件事根本没被测到——
+ *   而它正是服务端所有权校验的唯一依据。现在按真实形状转发，
+ *   顺带验证 utils/api.js 的 withIdentity / identityEnvelope 是否配对。
+ */
 const storage = {};
 global.wx = {
   setStorageSync: (k, v) => { storage[k] = v; },
@@ -44,7 +57,7 @@ global.wx = {
       if (name !== 'xj-api') {
         return Promise.resolve({ result: { ok: false, error: '未知云函数 ' + name } });
       }
-      return callCloud(data.action, data.payload, 'u_me')
+      return callCloud(data.action, data.payload, data.demoUserId)
         .then((r) => ({ result: r }))
         .catch((e) => ({ result: { ok: false, error: e.message } }));
     }
@@ -124,18 +137,77 @@ async function main() {
   });
 
   await test('隐藏特征只回传给本人（防冒充）', async () => {
+    /**
+     * 身份分两层，测试必须分别验证：
+     *   · 隐私裁剪只认服务端身份（callCloud 的第三个参数，即 ctx.userId）；
+     *   · 客户端传 viewerId 只能影响展示 persona，**换不来别人的隐藏特征**。
+     */
     // u_me 是 lost_cup_01 的所有者，能看到自己的隐藏特征
-    const mine = await callCloud('item.list', { viewerId: 'u_me' });
+    const mine = await callCloud('item.list', { viewerId: 'u_me' }, 'u_me');
     const myLost = mine.data.items.find((x) => x.id === 'lost_cup_01');
     assert(myLost.privateFeatures.length > 0, '本人应能看到自己的隐藏特征');
 
-    // 换一个查看者，不应看到别人的隐藏特征
-    const other = await callCloud('item.list', { viewerId: 'u_other' });
+    // 换个真实身份：不应看到别人的隐藏特征
+    const other = await callCloud('item.list', { viewerId: 'u_other' }, 'u_other');
     const notMine = other.data.items.find((x) => x.id === 'lost_cup_01');
     assert(notMine.privateFeatures.length === 0,
       '非本人不应看到隐藏特征（认领核验的答案），实际泄露 ' +
       notMine.privateFeatures.length + ' 项');
     assert(notMine.privateCount > 0, '但应回传数量供界面提示');
+
+    // 关键回归：冒充。伪造 viewerId 也不能拿到别人的隐藏特征
+    const spoof = await callCloud('item.list', { viewerId: 'u_me' }, 'u_other');
+    const spoofed = spoof.data.items.find((x) => x.id === 'lost_cup_01');
+    assert(spoofed.privateFeatures.length === 0,
+      '伪造 viewerId 不应拿到别人的隐藏特征，实际泄露 ' + spoofed.privateFeatures.length + ' 项');
+    assert(spoofed.privateCount > 0, '数量仍应保留');
+  });
+
+  await test('客户端云调用带身份信封，且 identity 是身份的唯一来源', async () => {
+    /**
+     * 这条测试盯的是「服务端拿不到身份」这个根因：
+     *   身份必须由 core/identity 统一提供，utils/api.js 每次云调用放进
+     *   event 顶层（demoUserId）。任一处断了，服务端所有权校验就退化成
+     *   「所有人都是 u_me」——也就是之前所有权的洞。
+     */
+    const identity = require(path.join(ROOT, 'core', 'identity.js'));
+
+    // 未注册读取器时回落到默认身份
+    identity.reset();
+    assert(identity.currentUserId() === identity.DEFAULT_USER_ID,
+      '未注册时应回落默认身份（保证离线演示不受影响）');
+
+    // 注册后立刻反映最新值（切身份后下一次调用即生效，不能缓存）
+    let acting = 'u_lin';
+    identity.register(() => acting);
+    assert(identity.currentUserId() === 'u_lin', '应读到注册后的身份');
+    acting = 'u_wang';
+    assert(identity.currentUserId() === 'u_wang', '应实时读取，不能缓存旧身份');
+
+    // 读取器抛异常时不能把整个调用链打断
+    identity.register(() => { throw new Error('boom'); });
+    assert(identity.currentUserId() === identity.DEFAULT_USER_ID, '读取异常应安全兜底');
+
+    // 走真实客户端链路：apiClient 发出的调用必须让服务端看到 u_wang
+    identity.register(() => 'u_wang');
+    const cfg = require(path.join(ROOT, 'core', 'config.js'));
+    assert(cfg.cloudReady(), '前置条件：云端模式已启用');
+
+    const apiClient = require(path.join(ROOT, 'utils', 'api.js'));
+    // 以 u_wang 的身份去更新 u_me 的记录，应被服务端所有权校验拒绝
+    const denied = await apiClient.callApi('item.update', {
+      id: 'lost_cup_01', patch: { description: '冒充者改的' }
+    }).then(() => null, (e) => e);
+    assert(denied, '以他人身份修改记录应被拒绝（说明身份确实传到了服务端）');
+    assert(/只能修改自己发布的记录/.test(denied.message),
+      '应返回所有权错误，实际：' + denied.message);
+
+    // 换回物主本人则允许
+    identity.register(() => 'u_me');
+    const okRes = await apiClient.callApi('item.update', {
+      id: 'lost_cup_01', patch: { description: '本人改的描述' }
+    });
+    assert(okRes && okRes.item, '物主本人应能更新自己的记录');
   });
 
   group('2. 客户端镜像必须保留计算字段');

@@ -213,6 +213,35 @@ async function updateMatch(id, patch) {
   return getMatch(id);
 }
 
+/**
+ * 改写 match 的业务 id（显式操作，不走 updateMatch）。
+ *
+ * 为什么需要单独一个函数：
+ *   · `updateMatch` 会主动剥掉 patch 里的 id —— 那是**有意的主键保护**，
+ *     防止业务代码随手改主键。所以归一同一个配对的 id 不能走它。
+ *   · 同一对 (lostId, foundId) 在历史数据里可能存着旧约定的 id
+ *     （例如单下划线版本），而代码按新约定推导出的 id 与之不同。
+ *     这种「同一份数据两个身份」的状态必须在入口处收敛掉，
+ *     否则认领单会指向一个查不到的 match。
+ *
+ * 行为：把文档的 id 字段改成 newId（保持 _id 不变，不产生新文档），
+ *      并同步迁移已经挂在该 match 上的认领单。
+ */
+async function renameMatchId(oldId, newId) {
+  if (!oldId || !newId || oldId === newId) return true;
+  const existing = await getMatch(oldId);
+  if (!existing) return false;
+  if (await getMatch(newId)) return false; // 目标 id 已被占用，交给调用方决定
+
+  const doc = await findOne('matches', { id: oldId });
+  if (!doc || !doc._id) return false;
+  await coll('matches').doc(doc._id).update({ data: { id: newId, updatedAt: Date.now() } });
+
+  // 已经指向旧 id 的认领单一起迁移，避免历史认领单被孤立
+  await coll('claims').where({ matchId: oldId }).update({ data: { matchId: newId, updatedAt: Date.now() } });
+  return true;
+}
+
 async function removeMatch(id) {
   await coll('matches').where({ id }).remove();
   return true;
@@ -385,6 +414,7 @@ module.exports = {
   getMatch,
   upsertMatch,
   updateMatch,
+  renameMatchId,
   removeMatch,
   claimsOfLost,
   getClaim,

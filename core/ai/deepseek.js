@@ -170,6 +170,7 @@ async function chat(messages, options) {
   };
   if (options && options.maxTokens) body.max_tokens = options.maxTokens;
   if (options && options.jsonMode) body.response_format = { type: 'json_object' };
+  if (options && options.thinking === 'disabled') body.thinking = { type: 'disabled' };
 
   let lastError = null;
   for (let attempt = 0; attempt <= cfg.maxRetries; attempt += 1) {
@@ -180,6 +181,11 @@ async function chat(messages, options) {
 
       const choice = res && res.choices && res.choices[0];
       const content = choice && choice.message ? choice.message.content : '';
+      if (choice && choice.finish_reason === 'length') {
+        const err = new Error('模型输出被截断，请重新识别或补充物品近照');
+        err.retryable = false;
+        throw err;
+      }
       if (!content && options && options.jsonMode) {
         // 官方说明 JSON 模式有概率返回空 content，这里作为可重试情况处理
         const err = new Error('DeepSeek 返回空内容（JSON 模式偶发，将重试）');
@@ -250,10 +256,21 @@ const FIELD_SPEC = [
 
 function buildExtractPrompt(description, type) {
   const role = type === 'found' ? '拾物者（捡到物品的人）' : '失主（丢失物品的人）';
+  const categories = require('../categories');
+  const example = (attributes, text) => {
+    const values = Object.assign({ category: '', brand: '', main_color: '', secondary_color: '', material: '',
+      shape: '', size: '', logo_text: '', pattern: '', sticker: '', damage_mark: '', accessory: '', features: [] }, attributes);
+    const confidence = {};
+    Object.keys(values).forEach((k) => { confidence[k] = values[k] && (!Array.isArray(values[k]) || values[k].length) ? 0.85 : 0; });
+    return JSON.stringify(Object.assign(values, { description: text, confidence }));
+  };
   return [
     '你是校园失物招领平台的结构化信息抽取模块。用户是' + role + '，会提供一张物品照片和/或一句自然语言描述。',
     '',
     '请仔细观察图片，并结合用户描述，抽取物品的结构化属性，以 json 格式输出。',
+    '先判断主体是什么，再抽取该类别的可见特征；在同一次 json 响应中完成，不输出思考过程。',
+    '优先观察物品而非桌面、手或背景；多件物品且主体不明确时不要任意指定类别，在 description 说明可见物体。',
+    '类别可识别而品牌、小字或材质看不清时，保留类别和可见特征，不要因为部分字段未知而放弃整个物体。',
     '',
     '输出 json 的字段要求：',
     FIELD_SPEC.map((f) => '- ' + f).join('\n'),
@@ -267,25 +284,19 @@ function buildExtractPrompt(description, type) {
     '2. 看不清或没有把握的字段，填空字符串 ""，绝对不要猜测编造。',
     '3. 颜色使用常见中文颜色词（黑/白/灰/深灰/银灰/蓝/深蓝/红/绿/棕/卡其/粉/透明/彩色）。',
     '4. 用户文字描述与图片冲突时，以用户描述为准（用户更了解自己的物品）。',
+    '5. confidence 必须包含每个属性字段，包括 category 与 features；未知字段用空字符串或空数组，置信度为 0。不要估算不可见的尺寸、容量、度数或材质。',
+    '6. features 填物体本身的可见差异，例如半框、双鼻托、蓝白卡面、挂孔；不要抄写背景特征。',
+    '',
+    '各类别的观察重点：',
+    categories.list().map((c) => c.key + '：' + categories.VISUAL_HINTS[c.key]).join('\n'),
     '',
     'json 输出样例：',
-    '{',
-    '  "category": "cup",',
-    '  "brand": "膳魔师",',
-    '  "main_color": "深灰",',
-    '  "secondary_color": "黑色",',
-    '  "material": "金属",',
-    '  "shape": "圆柱形",',
-    '  "size": "约 500ml",',
-    '  "logo_text": "杯身有白色纵向文字 Logo",',
-    '  "pattern": "纯色",',
-    '  "sticker": "",',
-    '  "damage_mark": "杯底有一道长划痕",',
-    '  "accessory": "带杯套",',
-    '  "features": ["杯底长划痕", "白色纵向 Logo"],',
-    '  "description": "深灰色圆柱形金属保温杯，黑色杯盖，杯身有白色纵向文字 Logo，杯底有一道长划痕，外观整洁。",',
-    '  "confidence": { "category": 0.95, "main_color": 0.9, "material": 0.85 }',
-    '}',
+    example({ category: 'glasses', main_color: '黑色', shape: '椭圆镜框', features: ['细框', '双鼻托', '透明镜片'] },
+      '一副黑色细框眼镜，椭圆形镜框，镜片透明，鼻梁两侧有鼻托，镜腿展开。'),
+    example({ category: 'card', main_color: '蓝色', secondary_color: '白色', shape: '圆角长方形', features: ['蓝白卡面', '卡面有徽标'] },
+      '一张蓝白配色的圆角卡片，卡面有徽标和文字区，小字无法辨认，未见卡套。'),
+    example({ category: 'cup', main_color: '深灰', secondary_color: '黑色', shape: '圆柱形', features: ['白色纵向标识'] },
+      '深灰色圆柱形杯子，杯盖黑色，杯身有白色纵向标识，品牌文字看不清。'),
     '',
     description ? '用户描述：' + description : '用户未提供文字描述，请完全依据图片判断。'
   ].join('\n');
@@ -316,32 +327,39 @@ function normalizeResult(parsed) {
   const out = { attributes: {}, confidence: {}, sources: {}, notes: [] };
 
   const raw = parsed || {};
+  const allowed = ['category', 'brand', 'main_color', 'secondary_color', 'material', 'shape', 'size',
+    'logo_text', 'pattern', 'sticker', 'damage_mark', 'accessory', 'features'];
   Object.keys(raw).forEach((key) => {
-    if (key === 'description' || key === 'confidence') return;
+    if (allowed.indexOf(key) < 0) return;
     const value = raw[key];
     if (value === undefined || value === null || value === '') return;
     if (Array.isArray(value)) {
-      const list = value.map((x) => String(x).trim()).filter(Boolean).slice(0, 4);
+      if (key !== 'features') return;
+      const list = value.filter((x) => typeof x === 'string').map((x) => x.trim().slice(0, 160)).filter(Boolean).slice(0, 4);
       if (list.length) out.attributes[key] = list;
+      out.sources[key] = 'ai';
       return;
     }
-    out.attributes[key] = String(value).trim();
+    if (typeof value !== 'string' || key === 'features') return;
+    out.attributes[key] = value.trim().slice(0, 160);
     out.sources[key] = 'ai';
   });
 
   if (out.attributes.category && validCategories.indexOf(out.attributes.category) < 0) {
-    out.attributes.category = categories.guessFromText(out.attributes.category) || 'other';
+    out.attributes.category = categories.normalizeLabel(out.attributes.category);
     out.notes.push('模型返回的类别不在预设体系内，已按关键词重新归类');
   }
 
   if (raw.confidence && typeof raw.confidence === 'object') {
     Object.keys(raw.confidence).forEach((k) => {
-      const v = Number(raw.confidence[k]);
-      if (!Number.isNaN(v)) out.confidence[k] = Math.min(1, Math.max(0, v));
+      const value = raw.confidence[k];
+      const v = typeof value === 'number' || (typeof value === 'string' && value.trim()) ? Number(value) : NaN;
+      if (allowed.indexOf(k) >= 0 && Number.isFinite(v))
+        out.confidence[k] = Math.min(1, Math.max(0, v));
     });
   }
 
-  if (typeof raw.description === 'string') out.description = raw.description.trim();
+  if (typeof raw.description === 'string') out.description = raw.description.trim().slice(0, 1000);
   return out;
 }
 
@@ -352,14 +370,14 @@ function normalizeResult(parsed) {
  *     image: { base64 | url | fileId, mimeType },   // 可选
  *     description: string,                          // 可选
  *     type: 'lost' | 'found',
- *     detail: 'low' | 'high' | 'original' | 'auto'  // 可选，默认 low 省 token
+ *     detail: 'low' | 'high' | 'original' | 'auto'  // 可选，默认 high 保留细节
  *   }
  * @param {object} options { apiKey, model, baseUrl }
  */
 async function extractAttributes(input, options) {
   const opts = input || {};
   const content = [];
-  const imageBlock = buildImageBlock(opts.image, opts.detail || 'low');
+  const imageBlock = buildImageBlock(opts.image, opts.detail || 'high');
   if (imageBlock) content.push(imageBlock);
   content.push({ type: 'text', text: buildExtractPrompt(opts.description, opts.type) });
 
@@ -372,17 +390,20 @@ async function extractAttributes(input, options) {
   const res = await chat([{ role: 'user', content }], Object.assign({}, options, {
     jsonMode: true,
     maxTokens: 1200,
+    thinking: 'disabled',
     temperature: 0.1
   }));
 
   const parsed = safeJsonParse(res.content);
-  if (!parsed) {
+  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
     const err = new Error('DeepSeek 返回内容无法解析为 JSON：' + String(res.content || '').slice(0, 200));
     err.retryable = true;
     throw err;
   }
 
   const normalized = normalizeResult(parsed);
+  if (!Object.keys(normalized.attributes).length && !normalized.description)
+    throw new Error('模型未识别到可用的物品线索，请换一张清晰照片或补充文字');
   normalized.usage = res.usage;
   normalized.model = res.model;
   return normalized;

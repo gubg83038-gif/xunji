@@ -11,6 +11,7 @@
  */
 
 const config = require('../core/config');
+const identity = require('../core/identity');
 
 const api = {};
 
@@ -45,6 +46,31 @@ function isCloud() {
   return config.cloudReady() && ensureCloudInit();
 }
 
+/**
+ * 归一 payload。
+ *
+ * 注意语义分工：
+ *   · `payload.userId` 是**读数据用的 persona**（「以谁的身份在看」），
+ *     例如 claim.mine 返回谁的认领记录、item.list 决定 hasImage/isOwner 文案。
+ *     它**不参与任何鉴权**。
+ *   · 真正的调用方身份放在 event 顶层（见 identityEnvelope），
+ *     服务端只认它，客户端传什么都改不了。
+ *
+ * 早期版本把两者混成一个 payload.userId，服务端又直接信任它，
+ * 等于调用方自己声明「我是谁」——`item.update` / `item.remove` / `claim.get`
+ * 的所有权校验形同虚设。现在彻底分开：
+ * 演示要「以拾物者身份看核验页」时用 globalData 切全局身份（demoUserId），
+ * 不去篡改 payload。
+ */
+function withIdentity(payload) {
+  return Object.assign({}, payload || {});
+}
+
+/** 调用方身份（放在 event 顶层，与 payload 分离，语义不同） */
+function identityEnvelope(userId) {
+  return userId ? { demoUserId: userId } : {};
+}
+
 /* ===================== 云函数调用 ===================== */
 
 /**
@@ -60,7 +86,10 @@ function callApi(action, payload) {
     }
     wx.cloud.callFunction({
       name: config.cloud.functions.api,
-      data: { action, payload: payload || {} },
+      data: Object.assign(
+        { action, payload: withIdentity(payload) },
+        identityEnvelope(identity.currentUserId())
+      ),
       config: { timeout: config.cloud.timeout }
     }).then((res) => {
       const r = res && res.result;
@@ -74,7 +103,9 @@ function callApi(action, payload) {
         detail: r
       }));
     }).catch((e) => {
-      reject(Object.assign(new Error('云函数调用失败：' + (e.errMsg || e.message || '未知原因')), { raw: e }));
+      reject(Object.assign(new Error('云函数调用失败：' + (e.errMsg || e.message || '未知原因')), {
+        raw: e, code: e.code, detail: e.detail
+      }));
     });
   });
 }

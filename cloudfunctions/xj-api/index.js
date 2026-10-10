@@ -24,11 +24,13 @@
  *   match.all            全局候选流
  *   match.rerun          重新执行增量匹配
  *   match.reject         排除候选（写入弱负样本）
+ *   match.restore        撤销排除（把候选放回列表）
  *   claim.start          发起认领（POST /claim）
  *   claim.submit         提交核验回答
  *   claim.confirm        拾物者确认/拒绝（POST /claim/{id}/confirm）
  *   claim.return         完成归还
  *   claim.get            认领详情
+ *   claim.message        核验中的临时会话（失主 ⇄ 拾物者，仅本次认领可见）
  *   notify.list          通知列表（GET /notifications）
  *   notify.read          全部标记已读
  *   stats.dashboard      看板统计
@@ -46,6 +48,7 @@ const locations = require('./core/locations');
 const seedData = require('./core/seed-data');
 const matcher = require('./core/matcher');
 const vlm = require('./core/vlm');
+const retrieval = require('./core/search');
 
 cloud.init({ env: cloud.DYNAMIC_CURRENT_ENV });
 
@@ -59,6 +62,63 @@ const CAMPUS_VERSION = require('./core/campus-data.js').META.version;
 function currentUserId(event) {
   if (event && event.userId) return event.userId;
   return 'u_me';
+}
+
+/**
+ * 管理员身份判定。
+ *
+ * 两类权限必须分开，混在一起会出大事（本轮踩过）：
+ *
+ *   · ADMIN_IDS —— **管理权限**：可以操作任何人的记录（requireOwner 的放行名单）。
+ *   · INIT_IDS  —— **初始化权限**：可以跑 system.* / seed.demo 这类会改全库的
+ *                  运维动作。
+ *
+ *   之前把 u_me 同时放进了管理权限名单，而 u_me 恰好是演示数据里大部分记录的
+ *   所有者——于是「只能改自己的记录」这条规则被静默绕过，安全性等于没有。
+ *   u_me 现在只保留初始化权限（README 的 Console 一键初始化脚本不带 userId，
+ *   必须让它仍然可用），不再拥有管理别人记录的权力。
+ *
+ * 真实项目请用 OPENID 关联管理员表；这里用环境变量 XJ_ADMIN_IDS / XJ_INIT_IDS 覆盖。
+ */
+function parseIds(env, fallback) {
+  const raw = String((process.env && process.env[env]) || '').split(',').map((s) => s.trim()).filter(Boolean);
+  return raw.length ? raw : fallback;
+}
+
+/** 管理权限：可以修改 / 删除任何人的记录 */
+const ADMIN_IDS = parseIds('XJ_ADMIN_IDS', ['u_admin']);
+
+/** 初始化权限：可以跑 system.* 与 seed.demo（会改全库） */
+const INIT_IDS = parseIds('XJ_INIT_IDS', ['u_admin', 'u_me']);
+
+function isAdmin(userId) {
+  return ADMIN_IDS.indexOf(userId) >= 0;
+}
+
+function canInit(userId) {
+  return INIT_IDS.indexOf(userId) >= 0;
+}
+
+/** 统一的「仅管理员」门禁（破坏性 / 初始化类 action） */
+function requireAdmin(ctx, action) {
+  if (canInit(ctx && ctx.userId)) return null;
+  return fail('「' + action + '」仅限管理员调用（当前身份：' + ((ctx && ctx.userId) || '未知') + '）', 'FORBIDDEN');
+}
+
+/**
+ * 统一的「仅记录所有者」门禁（管理员放行）。
+ * @param {object} ctx  含 userId
+ * @param {object} item 目标记录（必须已从库里取到）
+ * @param {string} what 动作描述，用于错误文案
+ */
+function requireOwner(ctx, item, what) {
+  const userId = (ctx && ctx.userId) || '';
+  if (isAdmin(userId)) return null;
+  if (item && item.userId === userId) return null;
+  return fail(
+    '只能' + what + '自己发布的记录（记录属于 ' + ((item && item.userId) || '未知') + '，当前身份 ' + (userId || '未知') + '）',
+    'FORBIDDEN'
+  );
 }
 
 function ok(data) {
@@ -77,6 +137,12 @@ function pad2(n) {
 /* ===================== action 实现 ===================== */
 
 const handlers = {
+  'item.search': async (payload) => {
+    const p = payload || {};
+    if (!String(p.description || '').trim() && !String(p.imageDescription || '').trim() && !Object.keys(p.attributes || {}).length)
+      return fail('请提供物品描述或已识别的图片线索', 'INVALID_INPUT');
+    return ok(retrieval.search(p, await store.itemsOf(p.kind === 'lost' ? 'lost' : 'found')));
+  },
   /* ---------- 系统与演示数据 ---------- */
 
   /**
@@ -104,7 +170,9 @@ const handlers = {
    *   // 返回 { done:false, next:{ step:'match', phase:'lost', offset:6 } }
    *   // 把 next 原样作为 payload 再调一次即可
    */
-  'system.step': async (payload) => {
+  'system.step': async (payload, ctx) => {
+    const denied = requireAdmin(ctx, 'system.step');
+    if (denied) return denied;
     const p = payload || {};
     const step = p.step || 'all';
 
@@ -274,7 +342,9 @@ const handlers = {
    *   云开发控制台 → 云函数 → xj-api → 版本与配置 → 配置 → 高级配置 → 超时时间。
    *   如果不想改超时，请改用 `system.step` 分步执行（见上）。
    */
-  'system.setup': async (payload) => {
+  'system.setup': async (payload, ctx) => {
+    const denied = requireAdmin(ctx, 'system.setup');
+    if (denied) return denied;
     const p = payload || {};
     const steps = [];
 
@@ -300,7 +370,9 @@ const handlers = {
     });
   },
 
-  'system.init': async () => {
+  'system.init': async (payload, ctx) => {
+    const denied = requireAdmin(ctx, 'system.init');
+    if (denied) return denied;
     const created = await store.ensureCollections();
     const meta = await store.setMeta({
       seedVersion: seedData.SEED_VERSION,
@@ -316,7 +388,9 @@ const handlers = {
    * 自愈：如果检测到「有物品记录但没有任何匹配」，说明上次灌入在中途被打断
    *      （例如客户端 20 秒超时），这里自动补跑一次匹配，避免停在半成品状态。
    */
-  'seed.demo': async (payload) => {
+  'seed.demo': async (payload, ctx) => {
+    const denied = requireAdmin(ctx, 'seed.demo');
+    if (denied) return denied;
     const result = await service.seedDemo({ reset: !!(payload && payload.reset) });
 
     let healed = null;
@@ -390,7 +464,14 @@ const handlers = {
     };
 
     return ok({
-      version: '2026-10-02-1930',
+      /**
+       * 代码版本标记：每次有结构性改动都要递增。
+       * 排查「云端跑的是不是最新代码」时看这个值。
+       *   · 2026-10-02-1930 之后再无更新
+       *   · 2026-10-08-2000 加入鉴权与所有权校验（item.update/remove、claim.*、system.*）
+       *                     新增 match.restore / claim.message 两个 action
+       */
+      version: '2026-10-08-2000',
       stepApi: 'system.step（init / seed / match 分块）',
       seedVersion: seedData.SEED_VERSION,
       campusVersion: CAMPUS_VERSION,
@@ -539,14 +620,17 @@ const handlers = {
     if (p.limit) list = list.slice(0, p.limit);
 
     /**
-     * 查看者必须是「谁在看」，而不是写死的默认用户。
-     * 真实项目里应取 cloud.getWXContext().OPENID；
-     * 这里允许 payload.viewerId 覆盖，方便前端演示切换用户。
+     * 查看者分两层，必须分开——这是之前「隐藏特征可被抓包读到」的根因：
      *
-     * ⚠ 传错这个值会导致隐藏特征（认领核验的答案）泄露给非本人——
-     *   测试 run-mirror.test.js 专门验证这一点。
+     *   · persona（展示身份）：决定 itemView 里的「我的/他人」文案。演示要切身份，
+     *     所以继续允许客户端用 payload.viewerId 显式声明。
+     *   · owner（隐私身份）：决定 privateFeatures 这类敏感字段能不能下发。
+     *     它**只认服务端身份 ctx.userId**，客户端传什么都不影响。
+     *
+     * 之前两者共用一个 viewerId，等于让调用方自己决定「我是不是物主」。
      */
-    const viewerId = p.viewerId || (p.userId ? p.userId : (ctx && ctx.userId)) || 'u_me';
+    const personaId = p.viewerId || (p.userId ? p.userId : (ctx && ctx.userId)) || 'u_me';
+    const ownerId = (ctx && ctx.userId) || 'u_me';
 
     if (p.view === true) {
       const views = [];
@@ -554,8 +638,8 @@ const handlers = {
       return ok({ items: views, total: views.length, format: 'view' });
     }
 
-    const entities = list.map((it) => service.toClientEntity(it, viewerId));
-    return ok({ items: entities, total: entities.length, format: 'entity', viewerId });
+    const entities = list.map((it) => service.toClientEntity(it, personaId, ownerId));
+    return ok({ items: entities, total: entities.length, format: 'entity', viewerId: personaId });
   },
 
   /**
@@ -570,18 +654,31 @@ const handlers = {
    *   记录本来就不在云端，没什么可更新的。
    *
    *   当错误处理既污染日志，又会让用户以为功能坏了。
+   *
+   * ⚠ 所有权：`item.update` 是破坏性写操作，必须确认调用方就是记录所有者
+   *   （或管理员）。之前只按 id 更新，任何调用方都能改别人的记录。
    */
-  'item.update': async (payload) => {
+  'item.update': async (payload, ctx) => {
     const p = payload || {};
-    const item = await store.updateItem(p.id, p.patch || {});
-    if (!item) {
+    const existed = await store.getItem(p.id);
+    if (!existed) {
       return ok({ ignored: true, reason: '记录不在云库中，已忽略本次更新', id: p.id });
     }
+    const denied = requireOwner(ctx, existed, '修改');
+    if (denied) return denied;
+    const item = await store.updateItem(p.id, p.patch || {});
     return ok({ item: await service.viewItem(item) });
   },
 
-  'item.remove': async (payload) => {
-    await store.removeItem(payload && payload.id);
+  'item.remove': async (payload, ctx) => {
+    const p = payload || {};
+    const existed = await store.getItem(p.id);
+    if (!existed) {
+      return ok({ ignored: true, reason: '记录不在云库中，已忽略本次删除', id: p.id });
+    }
+    const denied = requireOwner(ctx, existed, '删除');
+    if (denied) return denied;
+    await store.removeItem(p.id);
     return ok({ removed: true });
   },
 
@@ -589,17 +686,24 @@ const handlers = {
   'match.candidates': async (payload, ctx) => {
     const p = payload || {};
     const userId = p.userId || ctx.userId;
+    const opts = {
+      topK: p.topK || 20,
+      minScore: p.minScore,
+      // 「已排除」页签与撤销入口需要能看到被排除的候选
+      includeRejected: !!p.includeRejected
+    };
     if (p.kind === 'found' && p.itemId) {
-      return ok(await service.candidatesForFound(p.itemId, { topK: p.topK || 20, minScore: p.minScore }));
+      return ok(await service.candidatesForFound(p.itemId, opts));
     }
     if (p.itemId) {
-      return ok(await service.candidatesForLost(p.itemId, { topK: p.topK || 20, minScore: p.minScore }));
+      return ok(await service.candidatesForLost(p.itemId, opts));
     }
     const list = await service.allCandidateViews({
       minScore: p.minScore || 0.3,
       mineOnly: !!p.mineOnly,
       userId,
-      category: p.category
+      category: p.category,
+      includeRejected: !!p.includeRejected
     });
     return ok({ views: list, total: list.length });
   },
@@ -626,45 +730,120 @@ const handlers = {
 
   'match.reject': async (payload) => {
     const p = payload || {};
-    return ok(await service.rejectMatch(p.matchId, p.reason));
+    const r = await service.rejectMatch(p.matchId, p.reason, {
+      lostId: p.lostId,
+      foundId: p.foundId,
+      score: p.score,
+      threshold: p.threshold,
+      passed: p.passed
+    });
+    if (r && r.ok === false) return fail(r.message || '排除失败', 'REJECT_FAILED');
+    return ok(r);
+  },
+
+  'match.restore': async (payload) => {
+    const p = payload || {};
+    const r = await service.restoreMatch(p.matchId, { lostId: p.lostId, foundId: p.foundId });
+    if (!r.ok) return fail(r.message, 'RESTORE_FAILED');
+    return ok({ restored: true });
   },
 
   /* ---------- 认领 ---------- */
-  'claim.start': async (payload) => {
-    const r = await service.startClaim(payload && payload.matchId);
-    if (!r.ok) return fail(r.message, 'CLAIM_FAILED');
-    return ok({ claim: r.claimView });
-  },
 
-  'claim.submit': async (payload) => {
+  /**
+   * 发起认领。
+   *
+   * 只允许失物的主人为「自己的失物」发起认领：claimantId 是服务端根据
+   * lost.userId 推导的，若不校验调用方，任何人都能替别人发起认领。
+   */
+  'claim.start': async (payload, ctx) => {
     const p = payload || {};
-    const r = await service.submitClaim(p.claimId, p.answers || []);
+    const r = await service.startClaim(p.matchId, { userId: (ctx && ctx.userId) || '' });
     if (!r.ok) return fail(r.message, 'CLAIM_FAILED');
     return ok({ claim: r.claimView });
   },
 
-  'claim.confirm': async (payload) => {
+  /**
+   * 提交核验回答：只有认领者（失主）本人可以作答。
+   */
+  'claim.submit': async (payload, ctx) => {
     const p = payload || {};
-    const r = await service.confirmClaim(p.claimId, p.action, p.remark);
+    const r = await service.submitClaim(p.claimId, p.answers || [], { userId: (ctx && ctx.userId) || '' });
     if (!r.ok) return fail(r.message, 'CLAIM_FAILED');
     return ok({ claim: r.claimView });
   },
 
-  'claim.return': async (payload) => {
-    const r = await service.completeReturn(payload && payload.claimId);
+  /**
+   * 拾物者确认 / 拒绝：只有拾物者本人可以操作。
+   *
+   * 之前不校验身份也不校验状态，任意调用方既能把别人的认领改成「通过」，
+   * 也能把已经通过的认领单再改成「未通过」。
+   */
+  'claim.confirm': async (payload, ctx) => {
+    const p = payload || {};
+    const r = await service.confirmClaim(p.claimId, p.action, p.remark, { userId: (ctx && ctx.userId) || '' });
     if (!r.ok) return fail(r.message, 'CLAIM_FAILED');
     return ok({ claim: r.claimView });
   },
 
-  'claim.get': async (payload) => {
-    const claim = await store.getClaim(payload && payload.claimId);
+  /** 完成归还：双方任一都可以发起（线下交接完成后的确认动作） */
+  'claim.return': async (payload, ctx) => {
+    const p = payload || {};
+    const r = await service.completeReturn(p.claimId, { userId: (ctx && ctx.userId) || '' });
+    if (!r.ok) return fail(r.message, 'CLAIM_FAILED');
+    return ok({ claim: r.claimView });
+  },
+
+  /**
+   * 认领详情。
+   *
+   * ⚠ 必须校验调用者是本次认领的失主或拾物者：
+   *   认领单携带 questions / answers / privateFeatures，
+   *   不校验等于把防冒领的答案公开（任何人都能读走再去冒领）。
+   */
+  'claim.get': async (payload, ctx) => {
+    const p = payload || {};
+    const claim = await store.getClaim(p.claimId);
     if (!claim) return fail('认领单不存在', 'NOT_FOUND');
+    const userId = (ctx && ctx.userId) || '';
+    if (!isAdmin(userId) && claim.claimantId !== userId && claim.keeperId !== userId) {
+      return fail('只有本次认领的失主与拾物者可以查看认领详情', 'FORBIDDEN');
+    }
     return ok({ claim: await service.claimView(claim) });
   },
 
+  /**
+   * 我的认领记录。
+   *
+   * persona 语义：演示需要「以谁的身份在看就返回谁的记录」，所以沿用
+   * payload.userId（客户端注入的当前身份）。这里只做读，不涉及所有权判定；
+   * 破坏性操作（submit / confirm / return）一律以服务端身份 ctx.userId 为准。
+   */
   'claim.mine': async (payload, ctx) => ok({
     claims: await service.myClaims((payload && payload.userId) || ctx.userId)
   }),
+
+  /**
+   * 核验期临时会话（失主 ⇄ 拾物者，仅本次认领可见）。
+   * 不传 text 时只读会话（拉取消息列表）。
+   *
+   * 权限边界在 claimSessionView / postClaimMessage 的
+   * claimantId / keeperId 角色校验里，身份同样以服务端 ctx.userId 为准
+   * （客户端现在每次调用都会带上当前登录身份，见 utils/api.js 的 withIdentity）。
+   */
+  'claim.message': async (payload, ctx) => {
+    const p = payload || {};
+    const userId = (ctx && ctx.userId) || '';
+    if (!p.claimId) return fail('缺少 claimId', 'INVALID_PAYLOAD');
+    if (p.text === undefined || p.text === null || String(p.text).trim() === '') {
+      const session = await service.claimSessionView(p.claimId, { userId });
+      if (!session) return fail('认领单不存在', 'NOT_FOUND');
+      return ok({ session, messages: session.messages });
+    }
+    const r = await service.postClaimMessage(p.claimId, { userId, text: p.text });
+    if (!r.ok) return fail(r.message || '发送失败', 'MESSAGE_FAILED');
+    return ok({ message: r.message, session: r.session });
+  },
 
   /* ---------- 通知 ---------- */
   'notify.list': async (payload, ctx) => {
@@ -714,7 +893,23 @@ exports.main = async (event, context) => {
 
   try {
     const wxContext = cloud.getWXContext();
-    const ctx = { userId: (event && event.demoUserId) || 'u_me', openid: wxContext.OPENID };
+    /**
+     * 调用方身份。
+     *
+     * 优先级：event.userId（客户端 utils/api.js 的 withIdentity 每次都会注入）
+     *       → event.demoUserId（手动切演示身份）
+     *       → currentUserId(event)
+     *       → 'u_me'
+     *
+     * 这个值就是服务端所有权 / 权限校验的唯一依据
+     * （item.update、item.remove、claim.get、claim.submit、claim.confirm、system.*）。
+     * 客户端声明「我是谁」属于演示期的身份传递，不是鉴权——
+     * 真实项目应换成 cloud.getWXContext().OPENID 关联用户表。
+     */
+    const ctx = {
+      userId: (event && (event.userId || event.demoUserId)) || currentUserId(event),
+      openid: wxContext.OPENID
+    };
     const result = await handler(event && event.payload, ctx);
     result.elapsed = Date.now() - start;
     return result;

@@ -221,5 +221,19 @@
 
 .mc__actions {
   display: flex;
+  align-items: center;
   gap: 14rpx;
 }
+
+/* 「已排除」标记：排除后必须有明确的状态回执，否则用户以为没生效 */
+.mc__rejected-tag {
+  font-size: 22rpx;
+  font-weight: 600;
+  color: #b42318;
+  background: var(--c-danger-weak, #feeceb);
+  border-radius: var(--r-pill, 999rpx);
+  padding: 8rpx 20rpx;
+}
+
+/* 已排除的卡片整体降饱和，与正常候选拉开对比 */
+.mc__rejected-tag ~ .btn { opacity: 0.9; }

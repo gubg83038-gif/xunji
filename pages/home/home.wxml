@@ -1,4 +1,9 @@
 <view class="page page--home">
+  <view class="quick-search" bindtap="goSearch">
+    <image src="/static/ui/ic-search.png" mode="aspectFit" />
+    <view><view class="quick-search__title">文字 / 图片找物</view><view class="quick-search__sub">描述物品，立即查找相似选项</view></view>
+    <text class="quick-search__arrow"></text>
+  </view>
   <!--
     两大主入口（对照 UI 设计稿）
     设计稿里两张卡是**上下错位重叠**的：绿色卡上边缘有一段弧形包边盖住紫色卡。
@@ -118,6 +123,7 @@
         bind:tapcard="onMatchTap"
         bind:reject="onMatchReject"
         bind:claim="onMatchClaim"
+        bind:restore="onMatchRestore"
       />
     </block>
     <empty-state

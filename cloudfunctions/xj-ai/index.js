@@ -48,10 +48,19 @@ function resolveDemoImage(image, imageBase64) {
 }
 
 /** 组装模型所需的图片输入 */
-function buildImageInput(payload) {
+async function buildImageInput(payload) {
   const p = payload || {};
   if (p.imageBase64) {
     return { base64: p.imageBase64, mimeType: p.mimeType || 'image/jpeg' };
+  }
+  if (p.imageFileId && String(p.imageFileId).indexOf('cloud://') === 0) {
+    // CloudBase fileID 与模型服务 Files API file_id 属于不同系统。
+    const file = await cloud.downloadFile({ fileID: p.imageFileId });
+    if (!file.fileContent || !file.fileContent.length) throw new Error('云存储照片为空或无权读取');
+    if (file.fileContent.length > 1350 * 1024) throw new Error('云存储照片过大，请重新选择较小的照片');
+    const data = file.fileContent.toString('base64');
+    const mime = data.indexOf('iVBOR') === 0 ? 'image/png' : data.indexOf('UklGR') === 0 ? 'image/webp' : data.indexOf('R0lGOD') === 0 ? 'image/gif' : 'image/jpeg';
+    return { base64: data, mimeType: mime };
   }
   if (p.imageFileId) return { fileId: p.imageFileId };
   if (p.imageUrl) return { url: p.imageUrl };
@@ -103,17 +112,17 @@ const handlers = {
       });
     }
 
-    const imageInput = buildImageInput(p);
-    if (!imageInput && !p.description) {
+    if (!p.imageBase64 && !p.imageFileId && !p.imageUrl && !p.description) {
       return fail('需要提供图片或文字描述', 'NO_INPUT');
     }
 
     try {
+      const imageInput = await buildImageInput(p);
       const result = await deepseek.extractAttributes({
         image: imageInput,
         description: p.description || '',
         type: p.type || 'lost',
-        detail: p.detail || 'low'
+        detail: p.detail || 'high'
       });
       return ok({
         attributes: result.attributes,
@@ -141,9 +150,9 @@ const handlers = {
 
   'ai.describe': async (payload) => {
     const p = payload || {};
-    const imageInput = buildImageInput(p);
-    if (!imageInput) return fail('需要提供图片', 'NO_INPUT');
+    if (!p.imageBase64 && !p.imageFileId && !p.imageUrl) return fail('需要提供图片', 'NO_INPUT');
     try {
+      const imageInput = await buildImageInput(p);
       const result = await deepseek.describeImage(imageInput, { detail: p.detail || 'low' });
       return ok(result);
     } catch (e) {

@@ -106,6 +106,43 @@
   margin-left: 10rpx;
 }
 
+/* ---------- 已排除提示条 ---------- */
+/* 排除后候选立刻从列表消失，这条提示负责回答「它去哪了、怎么撤销」 */
+.excluded-bar {
+  display: flex;
+  align-items: center;
+  margin: 16rpx 24rpx 0;
+  padding: 18rpx 24rpx;
+  border-radius: var(--r-md);
+  background: #fff7e6;
+  border: 2rpx solid #fde3b0;
+  font-size: 22rpx;
+  color: #92400e;
+}
+
+.excluded-bar__icon {
+  margin-right: 12rpx;
+  flex: none;
+}
+
+.excluded-bar__link {
+  flex: none;
+  color: #b45309;
+  font-weight: 600;
+  text-decoration: underline;
+  margin-left: 12rpx;
+}
+
+.excluded-tip {
+  margin: 16rpx 24rpx 0;
+  padding: 16rpx 22rpx;
+  border-radius: var(--r-md);
+  background: #f9fafb;
+  font-size: 21rpx;
+  color: var(--c-ink-3);
+  line-height: 1.6;
+}
+
 /* ---------- 工具栏 ---------- */
 .toolbar {
   display: flex;
